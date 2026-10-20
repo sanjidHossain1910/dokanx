@@ -1,50 +1,49 @@
-# Welcome to your Expo app 👋
+# DokanX
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+An offline shop-management app for Android phones and iPhone, built with Expo SDK 57. The app supports English/Bangla and Light/Dark/System appearance. It runs in portrait orientation; tablet and web layouts are not targets.
 
-## Get started
+## Run on a phone
 
-1. Install dependencies
+Use Node.js 22.13 or newer:
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```sh
+npm install
+npm start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Open the project in Expo Go on your phone. Use `npm run android` for an Android emulator, or `npm run ios` for the iOS simulator on macOS. After dependencies change, restart Metro with `npx expo start --clear`.
 
-## Learn more
+## Features
 
-To learn more about developing your project with Expo, look at the following resources:
+- Offline shop registration and a saved activation flag, replacing login for now.
+- Products with unit-aware quantities, retained square photos, categories and stock alerts.
+- Multi-item POS, customer selection, cash/due/bKash/Nagad payment records and receipts.
+- Supplier purchases, pending/received stock, expenses and transaction histories.
+- Dashboard/report amounts with temporary show/hide controls.
+- Profile, payment settings, business preferences, language, appearance and local help.
+- Customer due collections and supplier payments with invoice allocations and ledgers.
+- Partial returns/refunds, optional restocking and return-adjusted sales/profit reports.
+- Daily opening cash, reconciliation, discrepancy notes and immutable cash close.
+- Product batches, expiry alerts and FEFO stock allocation with expired-sale blocking.
+- Portable local backup/restore with photos, QR images, history and safety backups.
+- Android Bluetooth receipt-printer selection, 58/80 mm output, test receipts and system print/PDF sharing.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Amounts are recorded in BDT. Phone business records use SQLite, including migration from the original AsyncStorage record. Language and appearance preferences use AsyncStorage. Photos and QR images are retained in app document storage. Manual `.dokanx` backups transfer local shop data to another phone; backend authentication, cloud backup and synchronization remain future work. Keep a backup outside the app: uninstalling or clearing storage can remove the local database and local backup files.
 
-## Join the community
+Bluetooth receipt printing requires an Android development/release build containing `react-native-thermal-pos-printer`, Bluetooth permissions and a paired ESC/POS printer. It does not run inside Expo Go. iPhone uses system print/PDF. Printed receipts contain shop name, Transaction ID, original transaction date/time, products and prices, total and a final `Thank you`.
 
-Join our community of developers creating universal apps.
+Wallet payments are recorded manually; the shopkeeper confirms receipt. Camera/barcode behavior and native sharing should be checked on a real phone.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Checks
+
+```sh
+npm run typecheck
+npm run lint
+npm test
+npx expo install --check
+npx expo export --platform android --max-workers 1
+```
+
+Implementation notes and recorded future requirements are in `docs/`. Older visual QA reports describe browser previews used before the project became phone-only.
+
+Manual checks for the new operations flows are in [operations-testing.md](docs/operations-testing.md). Hardware printing and native compilation require the corresponding device/build environment; Android JS export is a bundle check.

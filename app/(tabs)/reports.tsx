@@ -1,12 +1,1 @@
-import React from 'react'
-import { Text, View } from 'react-native'
-
-const reports = () => {
-    return (
-        <View>
-            <Text>reports</Text>
-        </View>
-    )
-}
-
-export default reports
+import Dashboard from "@/components/business/Dashboard"; export default function Reports() { return <Dashboard reports />; }

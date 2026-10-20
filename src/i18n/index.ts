@@ -27,7 +27,7 @@ let initializationPromise: Promise<typeof i18n> | undefined;
 export function initializeI18n(): Promise<typeof i18n> {
   if (initializationPromise) return initializationPromise;
   initializationPromise = (async () => {
-    const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
+    const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY).catch(() => null);
     const language = isSupportedLanguage(savedLanguage) ? savedLanguage : getDeviceLanguage();
     // i18next's default instance intentionally exposes these instance methods.
     // eslint-disable-next-line import/no-named-as-default-member
@@ -40,7 +40,10 @@ export function initializeI18n(): Promise<typeof i18n> {
       react: { useSuspense: false },
     });
     return i18n;
-  })();
+  })().catch((error) => {
+    initializationPromise = undefined;
+    throw error;
+  });
   return initializationPromise;
 }
 

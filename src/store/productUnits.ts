@@ -1,0 +1,89 @@
+export const UNIT_GROUPS = [
+  { id: "count", en: "Count", bn: "সংখ্যা", fractional: false },
+  { id: "weight", en: "Weight", bn: "ওজন", fractional: true },
+  { id: "volume", en: "Liquid / volume", bn: "তরল / আয়তন", fractional: true },
+  { id: "length", en: "Length", bn: "দৈর্ঘ্য", fractional: true },
+  { id: "area", en: "Area", bn: "ক্ষেত্রফল", fractional: true },
+  { id: "package", en: "Package / container", bn: "প্যাকেজ / পাত্র", fractional: false },
+  { id: "time", en: "Time", bn: "সময়", fractional: true },
+] as const;
+export type UnitGroupId = typeof UNIT_GROUPS[number]["id"];
+
+export const PRODUCT_UNITS = [
+  { id: "piece", group: "count", en: "Piece", bn: "পিস" },
+  { id: "pair", group: "count", en: "Pair", bn: "জোড়া" },
+  { id: "hali", group: "count", en: "Hali", bn: "হালি" },
+  { id: "dozen", group: "count", en: "Dozen", bn: "ডজন" },
+  { id: "set", group: "count", en: "Set", bn: "সেট" },
+  { id: "mg", group: "weight", en: "Milligram", bn: "মিলিগ্রাম" },
+  { id: "g", group: "weight", en: "Gram", bn: "গ্রাম" },
+  { id: "kg", group: "weight", en: "Kilogram", bn: "কেজি" },
+  { id: "mon", group: "weight", en: "Mon", bn: "মণ" },
+  { id: "quintal", group: "weight", en: "Quintal", bn: "কুইন্টাল" },
+  { id: "tonne", group: "weight", en: "Tonne", bn: "টন" },
+  { id: "ml", group: "volume", en: "Millilitre", bn: "মিলিলিটার" },
+  { id: "litre", group: "volume", en: "Litre", bn: "লিটার" },
+  { id: "cubic-foot", group: "volume", en: "Cubic foot", bn: "ঘনফুট" },
+  { id: "cubic-metre", group: "volume", en: "Cubic metre", bn: "ঘনমিটার" },
+  { id: "inch", group: "length", en: "Inch", bn: "ইঞ্চি" },
+  { id: "foot", group: "length", en: "Foot", bn: "ফুট" },
+  { id: "yard", group: "length", en: "Yard", bn: "গজ" },
+  { id: "cm", group: "length", en: "Centimetre", bn: "সেন্টিমিটার" },
+  { id: "metre", group: "length", en: "Metre", bn: "মিটার" },
+  { id: "square-foot", group: "area", en: "Square foot", bn: "বর্গফুট" },
+  { id: "square-yard", group: "area", en: "Square yard", bn: "বর্গগজ" },
+  { id: "square-metre", group: "area", en: "Square metre", bn: "বর্গমিটার" },
+  { id: "packet", group: "package", en: "Packet", bn: "প্যাকেট" },
+  { id: "box", group: "package", en: "Box", bn: "বক্স" },
+  { id: "carton", group: "package", en: "Carton", bn: "কার্টন" },
+  { id: "sack", group: "package", en: "Sack", bn: "বস্তা" },
+  { id: "bag", group: "package", en: "Bag", bn: "ব্যাগ" },
+  { id: "bundle", group: "package", en: "Bundle", bn: "বান্ডিল" },
+  { id: "roll", group: "package", en: "Roll", bn: "রোল" },
+  { id: "bottle", group: "package", en: "Bottle", bn: "বোতল" },
+  { id: "can", group: "package", en: "Can", bn: "ক্যান" },
+  { id: "jar", group: "package", en: "Jar", bn: "জার" },
+  { id: "drum", group: "package", en: "Drum", bn: "ড্রাম" },
+  { id: "minute", group: "time", en: "Minute", bn: "মিনিট" },
+  { id: "hour", group: "time", en: "Hour", bn: "ঘণ্টা" },
+  { id: "day", group: "time", en: "Day", bn: "দিন" },
+  { id: "month", group: "time", en: "Month", bn: "মাস" },
+] as const;
+export type UnitId = typeof PRODUCT_UNITS[number]["id"];
+export const getUnit = (id: unknown) => PRODUCT_UNITS.find((unit) => unit.id === id);
+export const unitLabel = (id: UnitId | undefined, language: string) => (getUnit(id ?? "piece") ?? PRODUCT_UNITS[0])[language.startsWith("bn") ? "bn" : "en"];
+export const allowsFraction = (id: UnitId | undefined) => UNIT_GROUPS.find((group) => group.id === getUnit(id ?? "piece")?.group)?.fractional ?? false;
+export function validUnitSelection(unit: unknown, group?: unknown) {
+  const definition = getUnit(unit ?? "piece");
+  return !!definition && (group === undefined || group === definition.group);
+}
+export function quantityTicks(value: number): number | null {
+  const scaled = value * 1000;
+  const ticks = Math.round(scaled);
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && Number.isSafeInteger(ticks) && Math.abs(scaled - ticks) < 0.0000001 ? ticks : null;
+}
+export function validQuantity(value: number, unit?: UnitId, allowZero = true) {
+  const ticks = quantityTicks(value);
+  return !!getUnit(unit ?? "piece") && ticks !== null && (allowZero || ticks > 0) && (allowsFraction(unit) || Number.isSafeInteger(value));
+}
+export const normalizeNumericInput = (value: string) => value.trim().replace(/[০-৯٠-٩۰-۹]/g, (digit) => String("০১২৩৪৫৬৭৮৯".indexOf(digit) >= 0 ? "০১২৩৪৫৬৭৮৯".indexOf(digit) : "٠١٢٣٤٥٦٧٨٩".indexOf(digit) >= 0 ? "٠١٢٣٤٥٦٧٨٩".indexOf(digit) : "۰۱۲۳۴۵۶۷۸۹".indexOf(digit))).replace(/٫/g, ".");
+export function parseQuantityInput(text: string, unit?: UnitId, allowZero = true) {
+  const normalized = normalizeNumericInput(text);
+  if (!(allowsFraction(unit) ? /^\d+(\.\d{1,3})?$/ : /^\d+$/).test(normalized)) return null;
+  const value = Number(normalized);
+  return validQuantity(value, unit, allowZero) ? value : null;
+}
+export function parseMoneyInput(text: string) {
+  const normalized = normalizeNumericInput(text);
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return null;
+  const [whole, fraction = ""] = normalized.split(".");
+  const cents = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+  return Number.isSafeInteger(cents) ? cents : null;
+}
+/** Round a complete line once to the nearest minor currency unit. */
+export function lineAmount(price: number, quantity: number) {
+  const ticks = quantityTicks(quantity);
+  if (!Number.isSafeInteger(price) || price < 0 || ticks === null) return null;
+  const cents = (BigInt(price) * BigInt(ticks) + 500n) / 1000n;
+  return cents <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(cents) : null;
+}

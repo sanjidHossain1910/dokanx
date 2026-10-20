@@ -1,20 +1,27 @@
-import BottomSheet from "@gorhom/bottom-sheet";
-import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { router } from "expo-router";
-import React, { useRef } from "react";
+import type { BottomTabBarProps } from "expo-router/js-tabs";
+import React, { useState } from "react";
 import { View } from "react-native";
+import { useKeyboardVisible } from "@/hooks/useKeyboardVisible";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import ActionBottomSheet from "../bottomSheet/ActionBottomSheet";
+import InventorySheet from "../business/InventorySheet";
+import { Button } from "../business/Screen";
+import { useTranslation } from "react-i18next";
 import FloatingButton from "./FloatingButton";
 import TabButton from "./TabButton";
+import { useTheme } from "@/src/theme/ThemeProvider";
 
 export default function CustomTabBar({
     state,
     descriptors,
     navigation,
 }: BottomTabBarProps) {
+    const { colors } = useTheme();
     const insets = useSafeAreaInsets();
-    const bottomSheetRef = useRef<BottomSheet>(null);
+    const [quickActions, setQuickActions] = useState(false);
+    const keyboardVisible = useKeyboardVisible();
+    const { t } = useTranslation();
+    if (keyboardVisible) return null;
     return (
         <>
             <View
@@ -27,7 +34,7 @@ export default function CustomTabBar({
                     height: 74,
                     borderRadius: 24,
 
-                    backgroundColor: "#1F2937",
+                    backgroundColor: colors.card,
 
                     flexDirection: "row",
                     alignItems: "center",
@@ -36,9 +43,9 @@ export default function CustomTabBar({
                     paddingHorizontal: 12,
 
                     borderWidth: 1,
-                    borderColor: "#374151",
+                    borderColor: colors.border,
 
-                    shadowColor: "#000",
+                    shadowColor: colors.shadow,
                     shadowOpacity: 0.15,
                     shadowRadius: 12,
                     shadowOffset: {
@@ -70,7 +77,8 @@ export default function CustomTabBar({
                         return (
                             <FloatingButton
                                 key={route.key}
-                                onPress={() => bottomSheetRef.current?.expand()}
+                                onPress={() => { navigation.navigate(route.name); router.dismissTo("/(tabs)/sales"); }}
+                                onLongPress={() => setQuickActions(true)}
                                 focused={focused}
                             />
                         );
@@ -87,16 +95,12 @@ export default function CustomTabBar({
                     );
                 })}
             </View>
-            <ActionBottomSheet
-                ref={bottomSheetRef}
-                onScanPress={() => {
-                    bottomSheetRef.current?.close();
-
-                    setTimeout(() => {
-                        router.push("/(scanner)/scan");
-                    }, 300);
-                }}
-            />
+            {quickActions && <InventorySheet title={t("business.quickActions")} onClose={() => setQuickActions(false)}>
+                <Button title={t("pos.newSale")} onPress={() => { setQuickActions(false); navigation.navigate("sales"); router.dismissTo("/(tabs)/sales"); }} />
+                <Button secondary title={t("business.addProduct")} onPress={() => { setQuickActions(false); router.push("/inventory/add-product"); }} />
+                <Button secondary title={t("business.addCategory")} onPress={() => { setQuickActions(false); router.push("/inventory/categories"); }} />
+                <Button secondary title={t("business.scan")} onPress={() => { setQuickActions(false); router.push("/(scanner)/scan"); }} />
+            </InventorySheet>}
         </>
 
     );

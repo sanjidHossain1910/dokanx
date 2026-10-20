@@ -3,3 +3,17 @@
 @import "tailwindcss/utilities.css";
 
 @import "nativewind/theme";
+
+@theme inline {
+  --color-canvas: var(--app-background);
+  --color-surface: var(--app-card);
+  --color-raised: var(--app-elevated);
+  --color-brand: var(--app-primary);
+  --color-ink: var(--app-text);
+  --color-muted: var(--app-muted);
+  --color-line: var(--app-border);
+  --color-positive: var(--app-success);
+  --color-caution: var(--app-warning);
+  --color-negative: var(--app-danger);
+  --color-on-brand: var(--app-on-primary);
+}

@@ -1,0 +1,20 @@
+import { useEffect, useRef, useState } from "react";
+import { Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
+import { useBusiness } from "@/src/store/BusinessProvider";
+import { clearPrinter, connectPrinter, findPrinters, readPrinter, savePrinter, type PrinterSettings } from "@/src/store/printer";
+import { paperHTML, type ReceiptPaper } from "@/src/store/receipt";
+import { formatBusinessDate } from "@/src/store/businessSettings";
+import { Button, Screen, useUi } from "@/components/business/Screen";
+import { FinanceIssue } from "@/components/business/FinanceShared";
+import { ReceiptPaperView, useReceiptPrinter } from "@/components/payments/PrintableReceipt";
+export default function PrinterScreen() {
+  const { data } = useBusiness(); const { t, i18n } = useTranslation(); const ui = useUi(); const receipt = useReceiptPrinter(); const lock = useRef(false);
+  const [selected, setSelected] = useState<PrinterSettings>(); const [width, setWidth] = useState<58 | 80>(58); const [devices, setDevices] = useState<{ address: string; name: string }[]>([]); const [searched, setSearched] = useState(false); const [busy, setBusy] = useState(false); const [issue, setIssue] = useState(""); const [message, setMessage] = useState("");
+  useEffect(() => { void readPrinter().then((value) => { setSelected(value); if (value) setWidth(value.paperWidth); }).catch(() => setIssue("printerFailed")); }, []);
+  const run = async (fn: () => Promise<void>) => { if (lock.current) return; lock.current = true; setBusy(true); setIssue(""); setMessage(""); try { await fn(); } catch (e) { setIssue(e instanceof Error && ["printerPlatform", "printerBuildRequired", "printerPermission", "printerBusy"].includes(e.message) ? e.message : "printerFailed"); } finally { lock.current = false; setBusy(false); } };
+  const paper: ReceiptPaper = { shopName: data.shopName, transactionId: "TEST-001", date: formatBusinessDate(new Date(), i18n.language, data.businessSettings), items: [{ id: "test", name: t("flows.testProduct"), detail: "1 × ৳10", price: "৳10" }], total: "৳10", totalLabel: t("pos.total") };
+  return <Screen back title={t("flows.printer")}><Text style={ui.text}>{t("flows.printerHint")}</Text><Text style={ui.subtitle}>{t("flows.paper")}</Text><View style={ui.row}>{([58, 80] as const).map((value) => <Button key={value} secondary={width !== value} title={`${value} mm`} disabled={busy} onPress={() => { void run(async () => { if (selected) { const next = { ...selected, paperWidth: value }; await savePrinter(next); setSelected(next); } setWidth(value); }); }} />)}</View>
+    {selected && <View style={ui.card}><Text style={ui.text}>{t("flows.savedPrinter")}</Text><Text style={ui.subtitle}>{selected.name}</Text><Text style={ui.text}>{selected.address} · {selected.paperWidth} mm</Text></View>}<Button title={t("flows.searchPrinters")} disabled={busy} onPress={() => { void run(async () => { setDevices(await findPrinters()); setSearched(true); }); }} />{searched && !devices.length && <Text style={ui.text}>{t("flows.noPrinters")}</Text>}{devices.map((p) => <View style={ui.card} key={p.address}><Text style={ui.subtitle}>{p.name}</Text><Text style={ui.text}>{p.address}</Text><Button secondary title={t("flows.connect")} disabled={busy} onPress={() => { void run(async () => { const settings = { ...p, paperWidth: width }; await connectPrinter(settings); setSelected(settings); setMessage("connected"); }); }} /></View>)}<FinanceIssue issue={issue} />{!!message && <Text accessibilityLiveRegion="polite" style={ui.subtitle}>{t(`flows.${message}`)}</Text>}<Button secondary title={t("flows.systemPrint")} disabled={busy} onPress={() => { void run(async () => { await clearPrinter(); setSelected(undefined); setMessage("saved"); }); }} /><Text style={ui.subtitle}>{t("flows.receiptPreview")}</Text><View style={{ alignItems: "center" }}><ReceiptPaperView paper={paper} /></View><Button title={t("flows.testPrint")} disabled={busy} onPress={() => { void run(async () => { await receipt.print(paper, paperHTML(paper, i18n.language)); setMessage("printSent"); }); }} />{receipt.node}</Screen>;
+}
+

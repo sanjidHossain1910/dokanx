@@ -1,4 +1,5 @@
 import React from "react";
+import { useTheme } from "@/src/theme/ThemeProvider";
 import { Pressable, Text, View } from "react-native";
 import {
     ChartColumn,
@@ -20,7 +21,8 @@ export default function TabButton({
     focused,
     onPress,
 }: TabButtonProps) {
-    const color = focused ? "#2563EB" : "#9CA3AF";
+    const { colors } = useTheme();
+    const color = focused ? colors.primary : colors.muted;
 
     const renderIcon = () => {
         switch (routeName) {
@@ -43,6 +45,10 @@ export default function TabButton({
 
     return (
         <Pressable
+            accessibilityRole="tab"
+            accessibilityLabel={label}
+            accessibilityState={{ selected: focused }}
+            aria-selected={focused}
             onPress={onPress}
             style={{
                 flex: 1,
@@ -56,7 +62,7 @@ export default function TabButton({
                     width: 24,
                     height: 3,
                     borderRadius: 2,
-                    backgroundColor: focused ? "#2563EB" : "transparent",
+                    backgroundColor: focused ? colors.primary : "transparent",
                     marginBottom: 8,
                 }}
             />
@@ -67,6 +73,8 @@ export default function TabButton({
                 style={{
                     marginTop: 6,
                     fontSize: 11,
+                    lineHeight: 16,
+                    textAlign: "center",
                     fontWeight: focused ? "700" : "500",
                     color,
                 }}
