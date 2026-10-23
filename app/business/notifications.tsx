@@ -1,3 +1,5 @@
+import { router } from "expo-router";
+import { selectDuePlans } from "@/src/store/dueReminders";
 import { Button, Screen, useUi } from "@/components/business/Screen";
 import LowStockAlert from "@/components/dashboard/LowStockAlert";
 import { selectDashboard } from "@/src/dashboard/selectors";
@@ -20,6 +22,7 @@ export default function Notifications() {
     finally { setBusy(false); }
   };
   return <Screen back title={t("dashboard.notifications")}>
+    {selectDuePlans(data).length > 0 && <Button secondary title={t("due.open")} onPress={() => router.push("/business/collections")} />}
     <Button title={t("dashboard.markRead")} disabled={busy || !overview.unread} onPress={() => void markRead()} />
     {error && <Text style={ui.error}>{t("business.saveFailed")}</Text>}
     {overview.alerts.length ? overview.alerts.map((product) => <LowStockAlert key={product.id} products={[product]} />) : <Text style={ui.text}>{t("dashboard.noNotifications")}</Text>}

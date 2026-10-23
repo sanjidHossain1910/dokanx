@@ -1,0 +1,46 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
+import {randomUUID} from 'node:crypto';
+import {createSQLiteRepository} from '../src/store/sqliteRepository.ts';
+import {addCartProduct,completeSale} from '../src/store/pos.ts';
+import {holdSale} from '../src/store/heldSales.ts';
+import {emptyBusiness,addProduct} from '../src/store/business.ts';
+const initial={...addProduct(emptyBusiness,{id:'p',name:'Rice',barcode:'',category:'Food',price:100,cost:70,stock:10,unit:'kg'}),shopId:'shop',shopName:'Shop'};
+function fixture(){const db=new DatabaseSync(':memory:');const open=async()=>({execAsync:async sql=>db.exec(sql),runAsync:async(sql,...args)=>db.prepare(sql).run(...args),getFirstAsync:async(sql,...args)=>db.prepare(sql).get(...args)??null});const make=()=>createSQLiteRepository(open,async()=>JSON.stringify(initial));const repo=make();return{db,repo,make};}
+const ack=(generation,ids,rejected=[])=>({generation,batchId:randomUUID(),acceptedChangeIds:ids,rejected,acceptedChanges:[]});
+async function setup(f){const snapshot=await f.repo.outbox.snapshot('shop');const seed=await f.repo.outbox.entries('shop',snapshot.generation,snapshot.sequence);assert.equal(seed.length,1);await f.repo.outbox.acknowledge('shop',ack(snapshot.generation,[seed[0].changeId]));return snapshot.generation;}
+test('business mutation and grouped outbox write roll back together on either database failure',async()=>{const f=fixture();try{await setup(f);const before=await f.repo.read();const next={...before,shopName:'Changed',products:before.products.map(p=>({...p,stock:9}))};
+ f.db.exec("CREATE TRIGGER reject_queue BEFORE INSERT ON sync_outbox BEGIN SELECT RAISE(ABORT,'queue disk failure'); END");await assert.rejects(f.repo.write(next),/queue disk failure/);assert.deepEqual(await f.repo.read(),before);f.db.exec('DROP TRIGGER reject_queue');
+ f.db.exec("CREATE TRIGGER reject_business BEFORE UPDATE ON business_state BEGIN SELECT RAISE(ABORT,'business disk failure'); END");await assert.rejects(f.repo.write(next),/business disk failure/);assert.equal(f.db.prepare('SELECT count(*) n FROM sync_outbox').get().n,0);f.db.exec('DROP TRIGGER reject_business');await f.repo.write(next);const snapshot=await f.repo.outbox.snapshot('shop'),entries=await f.repo.outbox.entries('shop',snapshot.generation,snapshot.sequence);assert.equal(entries.length,1);assert.deepEqual(entries[0].changes.map(c=>c.key).sort(),['products/p','settings/shopName']);}finally{f.db.close();}});
+test('restart preserves immutable operations; ACK removes only accepted changeIds and never newer edits',async()=>{const f=fixture();try{const generation=await setup(f);await f.repo.write({...await f.repo.read(),shopName:'First'});const snap=await f.repo.outbox.snapshot('shop'),[entry]=await f.repo.outbox.entries('shop',generation,snap.sequence);const wire={changeId:entry.changeId,changes:entry.changes.map(c=>({...c,before:null}))};const batch=randomUUID();await f.repo.outbox.claim('shop',generation,batch,[wire]);assert.equal((await f.repo.outbox.counts('shop',generation)).processing,1);
+ await f.repo.write({...await f.repo.read(),shopName:'Newer'});const restarted=f.make();await restarted.outbox.recover('shop',generation);const entries=await restarted.outbox.entries('shop',generation,Number.MAX_SAFE_INTEGER);assert.equal(entries.length,2);assert.deepEqual(entries[0].wire,wire);assert.notEqual(entries[0].changeId,entries[1].changeId);assert.equal((await restarted.outbox.entries('shop',generation,snap.sequence)).length,1);await restarted.outbox.acknowledge('shop',ack(generation,[entry.changeId]));assert.equal((await restarted.outbox.entries('shop',generation,Number.MAX_SAFE_INTEGER))[0].changeId,entries[1].changeId);await restarted.outbox.acknowledge('shop',ack(generation,[entry.changeId]));assert.equal((await restarted.outbox.counts('shop',generation)).pending,1);
+ }finally{f.db.close();}});
+test('partial ACK keeps rejected changes, deletion tombstones and account scope',async()=>{const f=fixture();try{const generation=await setup(f);await f.repo.write({...await f.repo.read(),shopName:'First'});await f.repo.write({...await f.repo.read(),products:[]});const entries=await f.repo.outbox.entries('shop',generation,Number.MAX_SAFE_INTEGER);assert.ok(entries[1].changes.some(c=>c.key==='products/p'&&c.value===null));await f.repo.outbox.acknowledge('foreign',ack(generation,entries.map(e=>e.changeId)));assert.equal((await f.repo.outbox.counts('shop',generation)).pending,2);await f.repo.outbox.acknowledge('shop',ack(generation,[entries[0].changeId],[{changeId:entries[1].changeId,status:'conflict',code:'syncConflict'}]));assert.deepEqual(await f.repo.outbox.counts('shop',generation),{pending:0,processing:0,conflict:1});}finally{f.db.close();}});
+test('remote writes and phone-only carts never echo; restore quarantines the old queue',async()=>{const f=fixture();try{const generation=await setup(f);const current=await f.repo.read();await f.repo.write({...current,shopName:'Remote'},{origin:'remote'});const cart=addCartProduct(await f.repo.read(),'p','cart',1);await f.repo.write({...holdSale(cart,'cart',{label:'Private',createdAt:'2026-10-21T10:00:00.000Z'}),notificationReadSignature:'phone'});assert.equal((await f.repo.outbox.counts('shop',generation)).pending,0);await f.repo.write({...await f.repo.read(),shopName:'Local'});await f.repo.write(current,{origin:'restore'});assert.equal((await f.repo.outbox.counts('shop',generation)).conflict,1);const next=await f.repo.outbox.snapshot('shop');assert.notEqual(next.generation,generation);const [seed]=await f.repo.outbox.entries('shop',next.generation,next.sequence);assert.ok(seed.seed);assert.equal(Object.keys(seed.changes).some(k=>k.startsWith('heldSales/')),false);}finally{f.db.close();}});
+
+test('a completed sale queues invoice, payment, stock and sale history as one indivisible operation',async()=>{const f=fixture();try{const generation=await setup(f);const cart=addCartProduct(await f.repo.read(),'p','sale-cart',2);await f.repo.write(cart);assert.equal((await f.repo.outbox.counts('shop',generation)).pending,0);const sold=completeSale(cart,'sale-cart',{method:'cash',received:200,note:'',reference:'',createdAt:'2026-10-21T10:00:00.000Z'});await f.repo.write(sold);const entries=await f.repo.outbox.entries('shop',generation,Number.MAX_SAFE_INTEGER);assert.equal(entries.length,1);for(const collection of ['products','sales','invoices','payments','stockMovements'])assert.ok(entries[0].changes.some(c=>c.key.startsWith(collection+'/')),collection);assert.equal((await f.repo.read()).products[0].stock,8);}finally{f.db.close();}});
+
+test('conflict decision atomically archives original operations and preserves unrelated pending changes',async()=>{
+ const f=fixture();try{const generation=await setup(f);await f.repo.write({...await f.repo.read(),shopName:'First'});
+ const [entry]=await f.repo.outbox.reviewEntries('shop',generation);assert.equal(entry.beforeValues['settings/shopName'],'Shop');
+ await f.repo.outbox.acknowledge('shop',ack(generation,[],[{changeId:entry.changeId,status:'conflict',code:'syncConflict'}]));
+ await f.repo.write({...await f.repo.read(),products:(await f.repo.read()).products.map(p=>({...p,price:110}))});
+ const snapshot=await f.repo.outbox.snapshot('shop'),data={...snapshot.data,shopName:'Cloud'};
+ const resolution={shop:'shop',generation,sequence:snapshot.sequence,expected:JSON.stringify(snapshot.data),changeIds:[entry.changeId],choice:'cloud',data,wire:{changeId:randomUUID(),changes:[]},localChanges:[],details:{}};
+ f.db.exec("CREATE TRIGGER reject_decision BEFORE UPDATE ON business_state BEGIN SELECT RAISE(ABORT,'decision disk failure'); END");
+ await assert.rejects(f.repo.outbox.resolve(resolution),/decision disk failure/);assert.equal(f.db.prepare('SELECT count(*) n FROM sync_conflict_decisions').get().n,0);assert.equal((await f.repo.outbox.reviewEntries('shop',generation)).length,2);
+ f.db.exec('DROP TRIGGER reject_decision');await f.repo.outbox.resolve(resolution);
+ assert.equal((await f.repo.read()).shopName,'Cloud');assert.equal((await f.repo.read()).products[0].price,110);
+ const rows=await f.repo.outbox.reviewEntries('shop',generation);assert.equal(rows.length,2);assert.ok(!rows.some(r=>r.changeId===entry.changeId));assert.equal(f.db.prepare('SELECT count(*) n FROM sync_conflict_decisions').get().n,1);
+ await assert.rejects(f.repo.outbox.resolve(resolution),/conflictReviewStale/);
+ }finally{f.db.close();}
+});
+
+test('existing queue database upgrades before-values storage without losing pending operations',async()=>{
+ const f=fixture();try{
+ f.db.exec("CREATE TABLE sync_outbox(sequence INTEGER PRIMARY KEY AUTOINCREMENT,change_id TEXT NOT NULL UNIQUE,shop_id TEXT NOT NULL,generation TEXT NOT NULL,status TEXT NOT NULL,payload TEXT NOT NULL,seed INTEGER NOT NULL DEFAULT 0,wire TEXT,batch_id TEXT,attempts INTEGER NOT NULL DEFAULT 0,last_error TEXT,created_at TEXT NOT NULL)");
+ const generation=await setup(f);assert.ok(f.db.prepare("SELECT name FROM pragma_table_info('sync_outbox') WHERE name='before_values'").get());
+ await f.repo.write({...await f.repo.read(),shopName:'Upgraded shop'});assert.equal((await f.repo.outbox.reviewEntries('shop',generation))[0].beforeValues['settings/shopName'],'Shop');
+ }finally{f.db.close();}
+});

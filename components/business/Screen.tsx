@@ -1,3 +1,4 @@
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useBusiness } from "@/src/store/BusinessProvider";
 import type { Href } from "expo-router";
 import Header from "@/components/ui/Header";
@@ -49,15 +50,16 @@ export function Screen({ title, children, back = false, description, rightSectio
   const ui = useUi();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { formMaxWidth, gutter } = useResponsiveLayout();
   return <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: colors.background }}>
     {back && <Header title={title} description={description} rightSection={rightSection} onBack={onBack} fallbackHref={fallbackHref} />}
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-    <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ padding: 20, paddingBottom: footer ? 24 : insets.bottom + (back ? 40 : 118), gap: 16, maxWidth: 720, width: "100%", alignSelf: "center" }}>
+    <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ padding: gutter, paddingBottom: footer ? 24 : insets.bottom + (back ? 40 : 118), gap: 16, maxWidth: formMaxWidth, width: "100%", alignSelf: "center" }}>
       {!back && <Text style={ui.title}>{title}</Text>}
       {error ? <><Text style={ui.error}>{t("business.storageUnavailable")}</Text><Button title={t("business.retry")} onPress={retry} /></> : !ready ? <ActivityIndicator color={colors.primary} accessibilityLabel={t("common.loading")} /> : children}
     </ScrollView>
     </KeyboardAvoidingView>
-    {footer && <View style={{ borderTopWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 14 }}><View style={{ maxWidth: 680, width: "100%", alignSelf: "center" }}>{footer}</View></View>}
+    {footer && <View style={{ borderTopWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingHorizontal: gutter, paddingTop: 14, paddingBottom: insets.bottom + 14 }}><View style={{ maxWidth: formMaxWidth - 40, width: "100%", alignSelf: "center" }}>{footer}</View></View>}
   </SafeAreaView>;
 }
 export function money(cents: number) { return formatMoney(cents, i18n.resolvedLanguage ?? "en"); }

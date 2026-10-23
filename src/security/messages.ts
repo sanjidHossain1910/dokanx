@@ -1,0 +1,2 @@
+const keys = ["invalidPin", "wrongPin", "pinCooldown", "pinWorkTimeout", "verifyPhoneAgain", "phoneLockRequired", "authenticationCancelled", "phoneAuthenticationFailed", "securityStorage", "securityBusy"];
+export function securityIssue(cause: unknown) { if (cause instanceof Error && cause.message === "pinUpgradeRequired") return "upgradeHint"; return cause instanceof Error && keys.includes(cause.message) ? cause.message : "securityStorage"; }

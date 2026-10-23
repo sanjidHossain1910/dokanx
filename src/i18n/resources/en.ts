@@ -1,3 +1,13 @@
+import { conflictsEn } from "./conflicts";
+import { accountEn } from "./account";
+import { accountSyncEn } from './accountSync';
+import { cloudBackupEn } from "./cloudBackup";
+import { dueEn } from "./due";
+import { restockEn } from "./restock";
+import { securityEn } from "./security";
+import { stockCountEn } from "./stockCount";
+import { profitEn } from "./profit";
+import { sellingEn } from "./selling";
 import { flowsEn } from "./flows";
 import { purchaseEn } from "./purchase";
 import { businessEn } from "./business";
@@ -5,7 +15,11 @@ import { inventoryEn } from "./inventory";
 import { posEn } from "./pos";
 import { setupEn } from "./setup";
 import { profileSettingsEn } from "./profileSettings";
-const en = {
+const en = { conflicts: conflictsEn, accountSync:accountSyncEn, cloudBackup: cloudBackupEn, account: accountEn, due: dueEn, restock: restockEn,
+  security: securityEn,
+  stockCount: stockCountEn,
+  profit: profitEn,
+  selling: sellingEn,
   flows: flowsEn,
   profileSettings: profileSettingsEn,
   setup: setupEn,
@@ -25,9 +39,36 @@ const en = {
     },
   },
   dashboard: {
-    showAmount: "Show {{label}}", hideAmount: "Hide {{label}}", amountHidden: "Amount hidden", autoHideHint: "Automatically hides again after 20 seconds.",
+    businessSummary: "Business Summary",
+    salesSinceStart: "Total sales since the beginning",
+    netMargin: "Net profit margin",
+    costsShare: "Product cost + expenses",
+    marginDescription: "Net profit margin: {{value}}",
+    marginNote: "Margin = profit after expenses ÷ sales excluding tax. The line shows the profit share; negative margins display as a loss percentage.",
+    openBreakdown: "Collection & due details",
+    closeBreakdown: "Hide details",
+    billCollected: "Collected", billDue: "Remaining due",
+    lifetime: "All-time Summary",
+    allTime: "All time",
+    totalSales: "Total Sales",
+    totalProfit: "Total Profit",
+    totalDue: "Outstanding Due",
+    totalReceived: "Total Collected",
+    cashReceived: "Cash Collected",
+    digitalReceived: "Digital Collected",
+    netProfitHint: "After tax, returns and expenses",
+    dueHint: "Current customer balances",
+    receivedHint: "Cash + digital, after refunds",
+    cashHint: "Sales + due collections − cash refunds",
+    digitalHint: "bKash, Nagad and card · after refunds",
+    receiptsNote: "Collected includes later due payments and deducts refunds. Cash collected is not the cash drawer balance; purchases and expenses are shown in Cash Day.",
+    legacyReceiptsNote: "Older sales without payment records are included in sales/profit, but not in collected cash or digital totals.",
+    dueSales: "View unpaid / partial sales",
+    paymentFilter: {"all": "All payments", "outstanding": "Due / partial", "paid": "Fully paid"},
+    showAmount: "Show {{label}}", hideAmount: "Hide {{label}}", amountHidden: "Amount hidden", autoHideHint: "Automatically hides again after {{seconds}} seconds.",
     title: "Dashboard", sales: "Sales", overview: "Here's your business overview.", morning: "Good Morning", afternoon: "Good Afternoon", evening: "Good Evening", night: "Good Night",
     today: "Today's Summary", purchase: "Purchase", profit: "Profit", expense: "Expense", quickActions: "Quick Actions", customers: "Customers", buy: "Purchase",
+    bestSellers: "Best Sellers", bestSellersHint: "Most frequently sold in the last 30 days", soldInSales: "Sold in {{quantity}} sales", noBestSellers: "Complete a sale to see your best-selling products here.",
     inventory: "Inventory Status", totalProducts: "Total Products", lowStock: "Low Stock", outOfStock: "Out of Stock", viewAll: "View All", week: "Sales This Week", weeklyTotal: "Total this week",
     alerts: "Low Stock Alerts", remaining: "{{quantity}} remaining", noAlerts: "Your shelves are looking good!", noAlertsBody: "No products need restocking right now.", noSales: "Your next sale starts the story.", noSalesBody: "Record a sale to see your weekly trend here.",
     noProducts: "Let's get your shop ready", noProductsBody: "Add your first product, then record sales and follow your business here.",
@@ -45,5 +86,3 @@ const en = {
 } as const;
 
 export default en;
-
-

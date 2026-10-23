@@ -1,3 +1,4 @@
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import Header from "@/components/ui/Header";
 import { Button, useUi } from "@/components/business/Screen";
 import { useBusiness } from "@/src/store/BusinessProvider";
@@ -14,12 +15,13 @@ export function PurchaseFrame({ title, hint, children, footer, right, scroll = t
   const { t } = useTranslation();
   const ui = useUi();
   const insets = useSafeAreaInsets();
+  const { formMaxWidth, gutter } = useResponsiveLayout();
   return <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: colors.background }}>
     {!hideHeader && <Header title={title} description={hint} rightSection={right} fallbackHref="/(tabs)" />}
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      {error ? <View style={{ padding: 20, gap: 12 }}><Text style={ui.error}>{t("business.storageUnavailable")}</Text><Button title={t("business.retry")} onPress={retry} /></View> : !ready ? <ActivityIndicator color={colors.primary} /> : scroll ? <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 24, gap: 16, maxWidth: 720, width: "100%", alignSelf: "center" }}>{children}</ScrollView> : children}
+      {error ? <View style={{ padding: gutter, gap: 12 }}><Text style={ui.error}>{t("business.storageUnavailable")}</Text><Button title={t("business.retry")} onPress={retry} /></View> : !ready ? <ActivityIndicator color={colors.primary} /> : scroll ? <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ padding: gutter, paddingBottom: insets.bottom + 24, gap: 16, maxWidth: formMaxWidth, width: "100%", alignSelf: "center" }}>{children}</ScrollView> : children}
     </KeyboardAvoidingView>
-    {footer && ready && !error && <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: insets.bottom + 14, borderTopWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}><View style={{ width: "100%", maxWidth: 680, alignSelf: "center" }}>{footer}</View></View>}
+    {footer && ready && !error && <View style={{ paddingHorizontal: gutter, paddingTop: 12, paddingBottom: insets.bottom + 14, borderTopWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}><View style={{ width: "100%", maxWidth: formMaxWidth - 40, alignSelf: "center" }}>{footer}</View></View>}
   </SafeAreaView>;
 }
 export function PurchaseIssue({ issue }: { issue?: string }) { const { t, i18n } = useTranslation(); const ui = useUi(); return issue ? <Text accessibilityRole="alert" style={ui.error}>{t(`${i18n.exists(`flows.${issue}`) ? "flows" : "purchase"}.${issue}`)}</Text> : null; }

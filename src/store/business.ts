@@ -1,3 +1,6 @@
+import { validDueReminders, type DueReminder } from "./dueReminders.ts";
+import { validRestock, type RestockData } from  "../restock/settings.ts";
+import { validStockCounts, type StockCount } from "./stockCounts.ts";
 import { validQuantity, validUnitSelection, quantityTicks, lineAmount, type UnitId, type UnitGroupId } from "./productUnits.ts";
 import { validInventoryMetadata, validMovement, type StockMovement } from "./inventory.ts";
 import { validPOS, type Invoice, type Payment, type SaleDraft } from "./pos.ts";
@@ -7,12 +10,13 @@ import { validShopState } from "./shop.ts";
 import { validBusinessSettings, type BusinessSettings } from "./businessSettings.ts";
 import { assertCashOpen, validFinance, type Settlement, type SaleReturn, type CashDay } from "./finance.ts";
 import { consumeBatches, validBatchState, type ProductBatch } from "./expiry.ts";
-export type Product = { id: string; name: string; barcode: string; category: string; price: number; cost: number; stock: number; unit?: UnitId; unitGroup?: UnitGroupId; photoUri?: string; lowStockThreshold?: number; description?: string; createdAt?: string; updatedAt?: string; deletedAt?: string };
+import type { HeldSale } from "./heldSales";
+export type Product = { id: string; name: string; barcode: string; category: string; price: number; wholesalePrice?: number; isFavorite?: boolean; cost: number; stock: number; unit?: UnitId; unitGroup?: UnitGroupId; photoUri?: string; lowStockThreshold?: number; description?: string; createdAt?: string; updatedAt?: string; deletedAt?: string };
 export type Sale = { id: string; productId: string; name: string; quantity: number; total: number; cost: number; createdAt: string; unit?: UnitId; invoiceId?: string; tax?: number; discount?: number; grossTotal?: number };
 export type Purchase = { invoiceId?: string; netTotal?: number; id: string; productId: string; name: string; quantity: number; unitCost: number; total: number; createdAt: string; unit?: UnitId };
 export type Expense = { id: string; name: string; total: number; createdAt: string };
 export type Customer = { id: string; name: string; phone: string; balance?: number };
-export type BusinessData = { customerCollections?: Settlement[]; supplierPayments?: Settlement[]; saleReturns?: SaleReturn[]; cashDays?: CashDay[]; productBatches?: ProductBatch[]; blockExpiredSales?: boolean; businessSettings?: BusinessSettings; shopActive?: boolean; shopId?: string; ownerName?: string; shopAddress?: string; shopPhotoUri?: string; shopRegisteredAt?: string; suppliers?: Supplier[]; purchaseDraft?: PurchaseDraft; purchaseInvoices?: PurchaseInvoice[]; products: Product[]; categories: string[]; sales: Sale[]; shopName: string; shopPhone?: string; paymentSettings?: PaymentSettings; purchases?: Purchase[]; expenses?: Expense[]; customers?: Customer[]; notificationReadSignature?: string; stockMovements?: StockMovement[]; saleDraft?: SaleDraft; invoices?: Invoice[]; payments?: Payment[] };
+export type BusinessData = { dueReminders?: DueReminder[]; restock?: RestockData; stockCounts?: StockCount[]; heldSales?: HeldSale[]; customerCollections?: Settlement[]; supplierPayments?: Settlement[]; saleReturns?: SaleReturn[]; cashDays?: CashDay[]; productBatches?: ProductBatch[]; blockExpiredSales?: boolean; businessSettings?: BusinessSettings; shopActive?: boolean; shopId?: string; ownerName?: string; shopAddress?: string; shopPhotoUri?: string; shopRegisteredAt?: string; suppliers?: Supplier[]; purchaseDraft?: PurchaseDraft; purchaseInvoices?: PurchaseInvoice[]; products: Product[]; categories: string[]; sales: Sale[]; shopName: string; shopPhone?: string; paymentSettings?: PaymentSettings; purchases?: Purchase[]; expenses?: Expense[]; customers?: Customer[]; notificationReadSignature?: string; stockMovements?: StockMovement[]; saleDraft?: SaleDraft; invoices?: Invoice[]; payments?: Payment[] };
 export const emptyBusiness: BusinessData = { products: [], categories: [], sales: [], shopName: "DokanX" };
 
 export function addProduct(data: BusinessData, product: Product): BusinessData {
@@ -57,7 +61,7 @@ export function parseBusiness(raw: string | null): BusinessData {
     (data.customers !== undefined && (!Array.isArray(data.customers) || data.customers.some((c) => !c || typeof c.id !== "string" || typeof c.name !== "string" || typeof c.phone !== "string" || (c.balance !== undefined && !money(c.balance))))) ||
     (data.notificationReadSignature !== undefined && typeof data.notificationReadSignature !== "string") ||
     (data.stockMovements !== undefined && (!Array.isArray(data.stockMovements) || data.stockMovements.some((m) => !validMovement(m)) || new Set(data.stockMovements.map((m) => m.id)).size !== data.stockMovements.length))) throw new Error("invalidData");
-  if (!validFinance(data) || !validBatchState(data) || (data.businessSettings !== undefined && !validBusinessSettings(data.businessSettings)) || !validShopState(data) || !validPurchasing(data) || !validPOS(data) || (data.shopPhone !== undefined && typeof data.shopPhone !== "string") || (data.paymentSettings !== undefined && !validPaymentSettings(data.paymentSettings))) throw new Error("invalidData");
+  if (!validDueReminders(data) || !validRestock(data) || !validStockCounts(data) || !validFinance(data) || !validBatchState(data) || (data.businessSettings !== undefined && !validBusinessSettings(data.businessSettings)) || !validShopState(data) || !validPurchasing(data) || !validPOS(data) || (data.shopPhone !== undefined && typeof data.shopPhone !== "string") || (data.paymentSettings !== undefined && !validPaymentSettings(data.paymentSettings))) throw new Error("invalidData");
   return data;
 }
 
@@ -71,6 +75,3 @@ export function recordPurchase(data: BusinessData, purchase: Omit<Purchase, "nam
   if (weighted > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("invalidPurchase");
   return { ...data, products: data.products.map((p) => p.id === product.id ? { ...p, stock: ticks / 1000, cost: Number(weighted) } : p), purchases: [...(data.purchases ?? []), { ...purchase, name: product.name, total, unit: product.unit ?? "piece" }] };
 }
-
-
-

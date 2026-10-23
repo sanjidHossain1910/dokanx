@@ -1,0 +1,27 @@
+import { useMemo, useState } from "react";
+import { Alert, FlatList, Pressable, Text, View } from "react-native";
+import { Trash2 } from "lucide-react-native";
+import { useTranslation } from "react-i18next";
+import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import InventorySheet from "@/components/business/InventorySheet";
+import { Button, Field, money, useUi } from "@/components/business/Screen";
+import { useTheme } from "@/src/theme/ThemeProvider";
+import { usePOS } from "@/src/store/usePOS";
+import { cartTotals } from "@/src/store/pos";
+import { previewHeldSale, removeHeldSale, resumeHeldSale } from "@/src/store/heldSales";
+import { unitLabel } from "@/src/store/productUnits";
+import { formatBusinessDate } from "@/src/store/businessSettings";
+import { formatNumber } from "@/src/dashboard/format";
+import { POSFrame, POSIssue, ProductPhoto } from "./Shared";
+type Preview = ReturnType<typeof previewHeldSale>;
+export default function HeldSales() {
+  const pos = usePOS(); const { t, i18n } = useTranslation(); const { colors } = useTheme(); const ui = useUi(); const insets = useSafeAreaInsets(); const [search, setSearch] = useState(""); const [review, setReview] = useState<Preview>();
+  const customerName = (id?: string) => pos.data.customers?.find((c) => c.id === id)?.name || t("pos.walkIn");
+  const rows = useMemo(() => [...(pos.data.heldSales ?? [])].filter((h) => `${h.label} ${pos.data.customers?.find((c) => c.id === h.customerId)?.name ?? ""} ${h.id}`.normalize("NFKC").toLocaleLowerCase(i18n.language).includes(search.trim().normalize("NFKC").toLocaleLowerCase(i18n.language))).sort((a, b) => Date.parse(b.heldAt) - Date.parse(a.heldAt)), [pos.data.heldSales, pos.data.customers, search, i18n.language]);
+  const preview = (id: string) => { pos.setIssue(""); try { if (pos.draft?.lines.length) throw new Error("activeSaleExists"); setReview(previewHeldSale(pos.data, id, new Date().toISOString())); } catch (e) { pos.setIssue(e instanceof Error ? e.message : "invalidHeldSale"); } };
+  return <POSFrame title={t("selling.heldSales")} subtitle={t("selling.resumeHint")} scroll={false}>
+    <FlatList data={rows} keyExtractor={(h) => h.id} keyboardShouldPersistTaps="handled" initialNumToRender={12} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 32, width: "100%", maxWidth: 720, alignSelf: "center", gap: 12 }} ListHeaderComponent={<View style={{ gap: 12, paddingBottom: 6 }}><Field label={t("selling.heldSearch")} value={search} onChangeText={setSearch} />{!!pos.draft?.lines.length && <><Text style={ui.text}>{t("selling.activeSaleExists")}</Text><Button secondary title={t("selling.viewCart")} onPress={() => router.dismissTo("/(tabs)/sales/cart")} /></>}<POSIssue issue={pos.issue} /></View>} ListEmptyComponent={<View style={{ gap: 10, paddingVertical: 24 }}><Text style={ui.subtitle}>{t(search ? "selling.noMatches" : "selling.noHeld")}</Text><Text style={ui.text}>{t("selling.noHeldHint")}</Text></View>} renderItem={({ item }) => <View style={ui.card}><Text style={ui.subtitle}>{item.label || customerName(item.customerId)}</Text><Text style={ui.text}>{customerName(item.customerId)} · {t("selling.items", { quantity: formatNumber(item.lines.length, i18n.language) })}</Text><Text style={ui.subtitle}>{money(cartTotals(item).total)}</Text><Text style={ui.text}>{formatBusinessDate(item.heldAt, i18n.language, pos.data.businessSettings)}</Text><View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><View style={{ flex: 1 }}><Button title={t("selling.resume")} disabled={pos.busy} onPress={() => preview(item.id)} /></View><Pressable disabled={pos.busy} accessibilityRole="button" accessibilityLabel={t("selling.deleteHeld")} onPress={() => Alert.alert(t("selling.deleteHeld"), `${item.label || customerName(item.customerId)}\n${t("selling.deleteHeldHint")}`, [{ text: t("pos.cancel"), style: "cancel" }, { text: t("selling.deleteHeld"), style: "destructive", onPress: () => { void pos.run((d) => removeHeldSale(d, item.id)); } }])} style={{ width: 48, height: 48, justifyContent: "center", alignItems: "center" }}><Trash2 size={21} color={colors.danger} /></Pressable></View></View>} />
+    {review && <InventorySheet title={t("selling.resumeTitle")} busy={pos.busy} onClose={() => setReview(undefined)}><Text style={ui.subtitle}>{customerName(review.draft.customerId)}</Text>{review.adjusted && <Text style={ui.text}>{t("selling.adjusted")}</Text>}{review.draft.lines.map((l) => <View key={l.productId} style={{ flexDirection: "row", gap: 10, alignItems: "center" }}><ProductPhoto uri={l.photoUri} name={l.name} size={44} /><View style={{ flex: 1 }}><Text style={ui.subtitle}>{l.name}</Text><Text style={ui.text}>{formatNumber(l.quantity, i18n.language)} {unitLabel(l.unit, i18n.language)} × {money(l.unitPrice)} · {t(`selling.${l.priceType ?? "retail"}`)}</Text></View></View>)}<Text style={ui.subtitle}>{t("pos.total")}: {money(review.totals.total)}</Text><Text style={ui.text}>{t("selling.resumeHint")}</Text><POSIssue issue={pos.issue} /><Button title={t("selling.resume")} disabled={pos.busy} onPress={() => { const expected = JSON.stringify(review.draft); void pos.run((d) => resumeHeldSale(d, review.draft.id, new Date().toISOString(), expected)).then((ok) => { if (ok) { setReview(undefined); router.dismissTo("/(tabs)/sales/cart"); } }); }} /></InventorySheet>}
+  </POSFrame>;
+}

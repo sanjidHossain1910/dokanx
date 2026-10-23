@@ -4,7 +4,11 @@ import CustomerSelector from "./CustomerSelector";
 import { ClearCartButton, POSFrame, POSIssue, SummaryRow } from "./Shared";
 import CartItem from "./CartItem";
 import { usePOS } from "@/src/store/usePOS";
-import { changeCartQuantity } from "@/src/store/pos";
+import { changeCartQuantity, setCartPriceType } from "@/src/store/pos";
+import { hasWholesalePrice } from "@/src/store/productPricing";
+import { sellableStock } from "@/src/store/expiry";
+import CartPriceOptions from "./CartPriceOptions";
+import HoldSaleButton from "./HoldSaleButton";
 import { parseMoneyInput, parseQuantityInput } from "@/src/store/productUnits";
 import { useTheme } from "@/src/theme/ThemeProvider";
 import { router } from "expo-router";
@@ -25,12 +29,13 @@ export default function Cart() {
   const d = pos.draft;
   const invalidQuantity = d?.lines.some((l) => {
     const product = pos.data.products.find((p) => p.id === l.productId && !p.deletedAt);
-    if (!product || product.stock < l.quantity || (product.unit ?? "piece") !== l.unit) return true;
+    if (!product || sellableStock(pos.data, product.id) < l.quantity || (product.unit ?? "piece") !== l.unit) return true;
     const value = inputs[l.productId];
     if (value === undefined) return false;
     const parsed = parseQuantityInput(value, l.unit, false);
     return parsed === null || parsed !== l.quantity;
   });
+  const invalidWholesale = d?.lines.some((l) => l.priceType === "wholesale" && !pos.data.products.some((p) => p.id === l.productId && !p.deletedAt && hasWholesalePrice(p)));
   const discount = discountInput === undefined ? d?.discount.value ?? 0 : parseMoneyInput(discountInput);
   const tax = taxInput === undefined ? d?.taxRate ?? 0 : parseMoneyInput(taxInput);
   const invalidRate = discount === null || tax === null || tax > 10000 || (d?.discount.kind === "percent" && discount > 10000);
@@ -41,7 +46,7 @@ export default function Cart() {
   return <POSFrame title={t("pos.currentSale")} right={<ClearCartButton />}>
     {!d?.lines.length ? <><Text style={ui.subtitle}>{t("pos.emptyCart")}</Text><Button title={t("pos.addMore")} onPress={() => router.dismissTo("/(tabs)/sales")} /></> : <>
       <View style={{ flexDirection: "row", borderBottomWidth: 1, borderColor: colors.border }}>{[{ id: "cart", Icon: ShoppingBag, label: `${t("pos.cart")} (${d.lines.length.toLocaleString(i18n.language)})` }, { id: "customer", Icon: UserRound, label: t("pos.customer") }].map(({ id, Icon, label }) => <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected: tab === id }} onPress={() => setTab(id)} style={{ flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7, borderBottomWidth: 2, borderBottomColor: tab === id ? colors.primary : "transparent" }}><Icon size={19} color={tab === id ? colors.primary : colors.muted} /><Text style={{ color: tab === id ? colors.primary : colors.muted, fontWeight: "600" }}>{label}</Text></Pressable>)}</View>
-      {tab === "customer" ? <CustomerSelector /> : d.lines.map((l) => <CartItem key={l.productId} line={l} value={inputs[l.productId] ?? String(l.quantity)} busy={pos.busy} onStep={(quantity) => change(l.productId, quantity)} onInput={(value) => {
+      {tab === "customer" ? <CustomerSelector /> : d.lines.map((l) => <CartItem key={l.productId} line={l} priceOptions={<CartPriceOptions line={l} disabled={pos.busy} onChange={(type) => { void pos.run((current) => setCartPriceType(current, d.id, l.productId, type)); }} />} value={inputs[l.productId] ?? String(l.quantity)} busy={pos.busy} onStep={(quantity) => change(l.productId, quantity)} onInput={(value) => {
         setInputs((old) => ({ ...old, [l.productId]: value }));
         const quantity = parseQuantityInput(value, l.unit, false);
         if (quantity !== null) void pos.run((data) => changeCartQuantity(data, d.id, l.productId, quantity));
@@ -54,8 +59,9 @@ export default function Cart() {
         <POSIssue issue={tax === null || tax > 10000 ? "invalidRate" : invalidRate ? "invalidDiscount" : pos.totalError} />
         {pos.totals && <><SummaryRow label={t("pos.subtotal")} value={money(pos.totals.subtotal)} /><SummaryRow label={t("pos.discount")} value={`− ${money(pos.totals.discount)}`} /><SummaryRow label={t("pos.tax")} value={money(pos.totals.tax)} /><View style={{ borderTopWidth: 1, borderColor: colors.border }}><SummaryRow label={t("pos.total")} value={money(pos.totals.total)} strong /></View></>}
       </View>
-      <POSIssue issue={invalidQuantity ? "invalidQuantity" : pos.issue} /><Text style={ui.text}>{t("pos.draftHint")}</Text>
-      <Button title={t("pos.proceed")} disabled={pos.busy || !pos.totals || !!invalidQuantity || invalidRate} onPress={() => router.push("/(tabs)/sales/payment")} />
+      <POSIssue issue={invalidWholesale ? "wholesaleUnavailable" : invalidQuantity ? "invalidQuantity" : pos.issue} /><Text style={ui.text}>{t("pos.draftHint")}</Text>
+      <HoldSaleButton disabled={pos.busy || !pos.totals || !!invalidQuantity || invalidRate} />
+      <Button title={t("pos.proceed")} disabled={pos.busy || !pos.totals || !!invalidQuantity || !!invalidWholesale || invalidRate} onPress={() => router.push("/(tabs)/sales/payment")} />
     </>}
   </POSFrame>;
 }

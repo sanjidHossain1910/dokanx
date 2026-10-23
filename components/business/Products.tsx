@@ -1,3 +1,4 @@
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { Button, money, useUi } from "./Screen";
 import InventorySheet from "./InventorySheet";
 import ProductActions from "./ProductActions";
@@ -24,7 +25,7 @@ const ProductCard = memo(function ProductCard({ product: p, onOptions }: { produ
   const { t, i18n } = useTranslation();
   return <Pressable accessibilityRole="button" accessibilityLabel={`${p.name}, ${money(p.price)}, ${formatNumber(p.stock, i18n.language)} ${unitLabel(p.unit, i18n.language)}`} onPress={() => router.push({ pathname: "/inventory/product", params: { productId: p.id } })}
     className="flex-row items-center rounded-2xl" style={({ pressed }) => ({ padding: 14, gap: 12, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.8 : 1, boxShadow: isDark ? undefined : "0px 2px 8px rgba(15,23,42,0.04)" })}>
-    <View style={{ width: 64, height: 72, flexShrink: 0, marginRight: 6, borderRadius: 12, backgroundColor: colors.elevated, justifyContent: "center", alignItems: "center", overflow: "hidden" }}>
+    <View style={{ width: 64, height: 72, flexShrink: 0, marginRight: 6, borderRadius: 12, backgroundColor: p.photoUri ? colors.productPhoto : colors.elevated, justifyContent: "center", alignItems: "center", overflow: "hidden" }}>
       {p.photoUri ? <Image source={{ uri: p.photoUri }} contentFit="cover" accessibilityLabel={p.name} style={{ width: 64, height: 64 }} /> : <Package size={30} color={colors.muted} />}
     </View>
     <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
@@ -46,6 +47,9 @@ export default function Products() {
   const { data, ready, error, retry } = useBusiness();
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { availableWidth, pageMaxWidth, gutter } = useResponsiveLayout();
+  const columns = availableWidth >= 1000 ? 2 : 1;
+  const cardWidth = (Math.min(availableWidth, pageMaxWidth) - gutter * 2 - (columns - 1) * 14) / columns;
   const { stock, saved } = useLocalSearchParams<{ stock?: string; saved?: string }>();
   const filter: Filter = stock === "in" || stock === "low" || stock === "out" ? stock : "all";
   const [search, setSearch] = useState("");
@@ -69,10 +73,11 @@ export default function Products() {
   }, [candidates, filter, sort, i18n.language]);
   const reset = () => { setSearch(""); setCategory(""); setSort("newest"); router.setParams({ stock: "" }); };
   return <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: colors.background }}>
-    <FlatList data={error || !ready ? [] : products} keyExtractor={(p) => p.id} renderItem={({ item }) => <ProductCard product={item} onOptions={setSelected} />} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" initialNumToRender={12} maxToRenderPerBatch={12} windowSize={7}
-      contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 118, gap: 14, maxWidth: 720, width: "100%", alignSelf: "center", flexGrow: 1 }}
+    <FlatList key={columns} numColumns={columns} columnWrapperStyle={columns > 1 ? { gap: 14 } : undefined} data={error || !ready ? [] : products} keyExtractor={(p) => p.id} renderItem={({ item }) => <View style={{ width: columns > 1 ? cardWidth : "100%" }}><ProductCard product={item} onOptions={setSelected} /></View>} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" initialNumToRender={12} maxToRenderPerBatch={12} windowSize={7}
+      contentContainerStyle={{ padding: gutter, paddingBottom: insets.bottom + 118, gap: 14, maxWidth: pageMaxWidth, width: "100%", alignSelf: "center", flexGrow: 1 }}
       ListHeaderComponent={<View style={{ gap: 22, marginBottom: 4 }}>
-        <Button secondary title={t("flows.expiryAlerts")} onPress={() => router.push("/inventory/expiry")} />
+        <Button secondary title={t("restock.title")} disabled={!ready || error} onPress={() => router.push("/inventory/restock")} />
+        <View style={{ flexDirection: "row", gap: 10 }}><View style={{ flex: 1 }}><Button secondary title={t("stockCount.title")} disabled={!ready || error} onPress={() => router.push("/inventory/stock-counts")} /></View><View style={{ flex: 1 }}><Button secondary title={t("flows.expiryAlerts")} onPress={() => router.push("/inventory/expiry")} /></View></View>
         {!!saved && <View style={{ flexDirection: "row", alignItems: "center", borderRadius: 12, paddingLeft: 14, backgroundColor: colors.successSoft }}><Text accessibilityLiveRegion="polite" style={{ flex: 1, color: colors.success, fontWeight: "600" }}>{t("inventory.saved")}</Text><Pressable accessibilityRole="button" accessibilityLabel={t("business.cancel")} onPress={() => router.setParams({ saved: "" })} style={{ width: 44, height: 44, justifyContent: "center", alignItems: "center" }}><X size={18} color={colors.success} /></Pressable></View>}
         <View className="flex-row items-center justify-between" style={{ gap: 12 }}><View style={{ flex: 1 }}><Text accessibilityRole="header" style={{ color: colors.text, fontSize: 27, fontWeight: "700", lineHeight: 38 }}>{t("business.products")}</Text><Text style={ui.text}>{t("inventory.subtitle")}</Text></View>
           <Pressable accessibilityRole="button" accessibilityLabel={t("business.scan")} onPress={() => router.push("/(scanner)/scan")} style={{ height: 46, width: 46, borderWidth: 1, borderColor: colors.border, borderRadius: 23, justifyContent: "center", alignItems: "center", backgroundColor: colors.card }}><ScanBarcode size={23} color={colors.text} /></Pressable>

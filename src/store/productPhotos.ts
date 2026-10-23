@@ -3,24 +3,27 @@ import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { squareCrop, validPhotoBytes } from "./photoRules";
 
 export type ProductPhotoDraft = { uri: string; width: number; height: number };
-export type PreparedProductPhoto = ProductPhotoDraft & { bytes: number };
+export type PreparedProductPhoto = ProductPhotoDraft & { bytes: number; format?: "png" };
 
-/** Preview and storage use the same square JPEG, never a second compression. */
+/** Preview and storage use the same square PNG, preserving transparent pixels. */
 export async function prepareProductPhoto(source: ProductPhotoDraft, zoom: number, x: number, y: number): Promise<PreparedProductPhoto> {
   const context = ImageManipulator.manipulate(source.uri);
   try {
     const crop = squareCrop(source.width, source.height, zoom, x, y);
-    context.crop(crop).resize({ width: Math.min(crop.width, 960) });
-    const image = await context.renderAsync();
-    try {
-      for (const quality of [0.85, 0.65, 0.45]) {
-        const jpeg = await image.saveAsync({ format: SaveFormat.JPEG, compress: quality });
-        const bytes = new File(jpeg.uri).size;
-        if (validPhotoBytes(bytes)) return { uri: jpeg.uri, width: jpeg.width, height: jpeg.height, bytes };
-        removeDraftPhoto(jpeg.uri);
-      }
-      throw new Error("photoTooLarge");
-    } finally { image.release(); }
+    // PNG quality does not reduce its dimensions. Retry smaller square renders
+    // from the original crop instead of flattening alpha into JPEG black pixels.
+    const sizes = [...new Set([960, 768, 640, 512, 448].map(size => Math.min(crop.width, size)))];
+    for (const size of sizes) {
+      context.reset(); context.crop(crop).resize({ width: size });
+      const image = await context.renderAsync();
+      try {
+        const png = await image.saveAsync({ format: SaveFormat.PNG, compress: 1 });
+        const bytes = new File(png.uri).size;
+        if (validPhotoBytes(bytes)) return { uri: png.uri, width: png.width, height: png.height, bytes, format: "png" };
+        removeDraftPhoto(png.uri);
+      } finally { image.release(); }
+    }
+    throw new Error("photoTooLarge");
   } finally { context.release(); }
 }
 
@@ -36,7 +39,7 @@ export async function saveProductPhoto(source: PreparedProductPhoto, productId: 
   if (!validPhotoBytes(original.size)) throw new Error("photoTooLarge");
   const directory = new Directory(Paths.document, "product-photos");
   directory.create({ intermediates: true, idempotent: true });
-  const destination = new File(directory, `${productId}.jpg`);
+  const destination = new File(directory, `${productId}.${source.format === "png" ? "png" : "jpg"}`);
   if (destination.exists) throw new Error("photoSaveFailed");
   try { await original.copy(destination); }
   catch (error) { if (destination.exists) destination.delete(); throw error; }

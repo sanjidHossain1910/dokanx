@@ -11,7 +11,7 @@ import SetupFrame from "./SetupFrame";
 export default function ShopWelcome() {
   const { t } = useTranslation(); const ui = useUi(); const { colors } = useTheme();
   const start = () => router.push("/setup/basic");
-  return <SetupFrame footer={<Button title={`${t("buttons.getStarted")}  →`} onPress={start} />}>
+  return <SetupFrame footer={<><Button title={t("account.offline")} onPress={start} /><Button secondary title={t("account.signupTitle")} onPress={() => router.push({ pathname: "/account", params: { mode: "signup" } })} /><Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/account", params: { mode: "login" } })} style={{ minHeight: 44, justifyContent: "center" }}><Text style={[ui.subtitle, { textAlign: "center", color: colors.primary }]}>{t("account.haveAccount")}</Text></Pressable><Text style={[ui.text, { textAlign: "center", fontSize: 13 }]}>{t("account.offlineHint")}</Text></>}>
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><LanguageDropdown /><Pressable accessibilityRole="button" onPress={start} style={{ padding: 12 }}><Text style={ui.subtitle}>{t("buttons.skip")}</Text></Pressable></View>
     <View style={{ alignItems: "center", gap: 16, paddingVertical: 12 }}>
       <View style={{ width: 158, height: 158, borderRadius: 44, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }}><Store size={100} color={colors.primary} strokeWidth={1.6} /></View>

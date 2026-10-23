@@ -18,6 +18,7 @@ Open the project in Expo Go on your phone. Use `npm run android` for an Android 
 - Offline shop registration and a saved activation flag, replacing login for now.
 - Products with unit-aware quantities, retained square photos, categories and stock alerts.
 - Multi-item POS, customer selection, cash/due/bKash/Nagad payment records and receipts.
+- Favorites with corner-star controls, persistent held carts, and optional wholesale prices selected per cart product.
 - Supplier purchases, pending/received stock, expenses and transaction histories.
 - Dashboard/report amounts with temporary show/hide controls.
 - Profile, payment settings, business preferences, language, appearance and local help.

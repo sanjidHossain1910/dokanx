@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { addProduct, emptyBusiness, parseBusiness } from "../src/store/business.ts";
-import { defaultBusinessSettings, formatBusinessDate, validBusinessSettings } from "../src/store/businessSettings.ts";
+import { amountVisibilitySettings, defaultBusinessSettings, formatBusinessDate, validBusinessSettings } from "../src/store/businessSettings.ts";
 import { addCartProduct, completeSale } from "../src/store/pos.ts";
 import { emptyPaymentSettings, saveWalletAccount, validPaymentSettings } from "../src/store/paymentSettings.ts";
 import { receiptHTML } from "../src/store/receipt.ts";
@@ -48,4 +48,11 @@ test("only one enabled wallet can be default, and disabling clears its default f
   assert.equal(disabled.nagad.isDefault, false);
   assert.equal(validPaymentSettings(disabled), true);
   assert.equal(validPaymentSettings({ bkash: { ...bkash.bkash, isDefault: true }, nagad: { ...nagad.nagad, isDefault: true } }), false);
+});
+
+test("amount visibility settings persist, keep legacy defaults, and reject malformed or unbounded timers",()=>{
+ const {hideAmounts,amountHideSeconds,...legacy}=defaultBusinessSettings;
+ assert.equal(validBusinessSettings(legacy),true);assert.deepEqual(amountVisibilitySettings(legacy),{enabled:true,seconds:20});assert.deepEqual(amountVisibilitySettings(),{enabled:true,seconds:20});
+ for(const enabled of [true,false])for(const seconds of [5,10,20,30,60,3600]){const settings={...legacy,hideAmounts:enabled,amountHideSeconds:seconds};const restored=parseBusiness(JSON.stringify({...emptyBusiness,businessSettings:settings}));assert.deepEqual(amountVisibilitySettings(restored.businessSettings),{enabled,seconds});}
+ for(const patch of [{hideAmounts:0},{hideAmounts:null},{hideAmounts:'yes'},{amountHideSeconds:0},{amountHideSeconds:4},{amountHideSeconds:3601},{amountHideSeconds:20.5},{amountHideSeconds:'30'},{amountHideSeconds:null}])assert.throws(()=>parseBusiness(JSON.stringify({...emptyBusiness,businessSettings:{...legacy,...patch}})),/invalidData/);
 });

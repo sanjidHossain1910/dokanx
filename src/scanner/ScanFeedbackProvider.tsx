@@ -14,7 +14,7 @@ export function ScanFeedbackProvider({ children }: { children: ReactNode }) {
   const feedback = useCallback((scanId: string) => {
     if (!scanId || lastScan.current === scanId) return;
     lastScan.current = scanId;
-    // Called on the product route, after the scanner's camera has been removed.
+    // Shared by the single-result route and the continuous sale scanner.
     Vibration.vibrate(100);
     try {
       if (player.currentTime > 0) {

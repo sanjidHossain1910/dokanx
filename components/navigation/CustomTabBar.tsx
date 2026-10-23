@@ -1,7 +1,7 @@
 import { router } from "expo-router";
 import type { BottomTabBarProps } from "expo-router/js-tabs";
 import React, { useState } from "react";
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import { useKeyboardVisible } from "@/hooks/useKeyboardVisible";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import InventorySheet from "../business/InventorySheet";
@@ -18,6 +18,8 @@ export default function CustomTabBar({
 }: BottomTabBarProps) {
     const { colors } = useTheme();
     const insets = useSafeAreaInsets();
+    const { width } = useWindowDimensions();
+    const sideInset = Math.max(16, (width - 760) / 2);
     const [quickActions, setQuickActions] = useState(false);
     const keyboardVisible = useKeyboardVisible();
     const { t } = useTranslation();
@@ -27,8 +29,8 @@ export default function CustomTabBar({
             <View
                 style={{
                     position: "absolute",
-                    left: 16,
-                    right: 16,
+                    left: Math.max(insets.left + 16, sideInset),
+                    right: Math.max(insets.right + 16, sideInset),
                     bottom: insets.bottom + 12,
 
                     height: 74,

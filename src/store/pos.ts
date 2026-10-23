@@ -1,11 +1,13 @@
+import { setDuePlan, type DuePlanInput } from "./dueReminders.ts";
 import type { BusinessData } from "./business";
 import { lineAmount, quantityTicks, validQuantity, validUnitSelection, type UnitId } from "./productUnits.ts";
 import { validWalletAccount } from "./paymentSettings.ts";
 import { assertCashOpen } from "./finance.ts";
 import { consumeBatches, type BatchAllocation } from "./expiry.ts";
+import { hasWholesalePrice, productSalePrice, type PriceType } from "./productPricing.ts";
 
 export type PaymentMethod = "cash" | "bkash" | "nagad" | "card" | "due";
-export type CartLine = { productId: string; name: string; quantity: number; unit: UnitId; unitPrice: number; photoUri?: string };
+export type CartLine = { productId: string; name: string; quantity: number; unit: UnitId; unitPrice: number; priceType?: PriceType; photoUri?: string };
 export type SaleDraft = { id: string; lines: CartLine[]; customerId?: string; discount: { kind: "fixed" | "percent"; value: number }; taxRate: number };
 export type InvoiceItem = CartLine & { id: string; unitCost: number; grossTotal: number; discount: number; tax: number; lineTotal: number; cost: number; batchAllocations?: BatchAllocation[] };
 export type Invoice = { id: string; invoiceNumber: string; shopName: string; shopPhone?: string; receiptFooter?: string; customerId?: string; customerName: string; items: InvoiceItem[]; subtotal: number; discount: number; tax: number; total: number; amountReceived: number; amountPaid: number; amountDue: number; change: number; method: PaymentMethod; status: "paid" | "partial" | "due"; note: string; reference: string; createdAt: string };
@@ -19,7 +21,7 @@ function safe(n: bigint) { if (n < 0n || n > BigInt(Number.MAX_SAFE_INTEGER)) th
 const sum = (values: number[]) => safe(values.reduce((total, n) => total + BigInt(n), 0n));
 function percentage(amount: number, basisPoints: number) { return safe((BigInt(amount) * BigInt(basisPoints) + 5000n) / 10000n); }
 export function validCartLine(l: CartLine) {
-  return !!l && nonempty(l.productId) && nonempty(l.name) && typeof l.unit === "string" && validUnitSelection(l.unit) && validQuantity(l.quantity, l.unit, false) && moneyValue(l.unitPrice) && (l.photoUri === undefined || nonempty(l.photoUri));
+  return !!l && nonempty(l.productId) && nonempty(l.name) && typeof l.unit === "string" && validUnitSelection(l.unit) && validQuantity(l.quantity, l.unit, false) && moneyValue(l.unitPrice) && (l.priceType === undefined || l.priceType === "retail" || l.priceType === "wholesale") && (l.priceType !== "wholesale" || l.unitPrice > 0) && (l.photoUri === undefined || nonempty(l.photoUri));
 }
 export function validDraft(d: SaleDraft) {
   if (!d || !nonempty(d.id) || !Array.isArray(d.lines) || d.lines.some((l) => !validCartLine(l)) || new Set(d.lines.map((l) => l.productId)).size !== d.lines.length || !d.discount || !["fixed", "percent"].includes(d.discount.kind) || !moneyValue(d.discount.value) || (d.discount.kind === "percent" && d.discount.value > 10000) || !moneyValue(d.taxRate) || d.taxRate > 10000 || (d.customerId !== undefined && !nonempty(d.customerId))) return false;
@@ -45,18 +47,31 @@ export function allocateAmount(total: number, weights: number[]) {
   for (const row of ranked) { if (remaining <= 0) break; row.value++; remaining--; }
   return rows.map((r) => r.value);
 }
-export function addCartProduct(data: BusinessData, productId: string, draftId: string, amount?: number): BusinessData {
+export function addCartProduct(data: BusinessData, productId: string, draftId: string, amount?: number, priceType?: PriceType): BusinessData {
   const p = data.products.find((p) => p.id === productId && !p.deletedAt);
   if (!p || p.stock <= 0) throw new Error("stockUnavailable");
+  if (!data.saleDraft && ((data.heldSales ?? []).some((h) => h.id === draftId) || data.invoices?.some((i) => i.id === draftId))) throw new Error("duplicateInvoice");
   const draft: SaleDraft = data.saleDraft ?? { id: draftId, lines: [], discount: { kind: data.businessSettings?.defaultDiscountPercent ? "percent" : "fixed", value: data.businessSettings?.defaultDiscountPercent ?? 0 }, taxRate: 0 };
   const existing = draft.lines.find((l) => l.productId === productId);
+  const selectedType = priceType ?? existing?.priceType ?? "retail";
+  if (selectedType === "wholesale" || priceType !== undefined) productSalePrice(p, selectedType);
   if (amount !== undefined && !validQuantity(amount, p.unit, false)) throw new Error("invalidQuantity");
   const increment = amount ?? Math.min(1000, quantityTicks(p.stock)! - quantityTicks(existing?.quantity ?? 0)!) / 1000;
   if (increment <= 0) throw new Error("stockUnavailable");
   const quantity = existing ? (quantityTicks(existing.quantity)! + quantityTicks(increment)!) / 1000 : increment;
   if (quantity > p.stock || !validQuantity(quantity, p.unit, false) || existing && existing.unit !== (p.unit ?? "piece")) throw new Error("stockUnavailable");
-  const line: CartLine = existing ? { ...existing, quantity } : { productId, name: p.name, quantity, unit: p.unit ?? "piece", unitPrice: p.price, ...(p.photoUri ? { photoUri: p.photoUri } : {}) };
+  const changedType = !!existing && selectedType !== (existing.priceType ?? "retail");
+  const unitPrice = existing && !changedType ? existing.unitPrice : productSalePrice(p, selectedType);
+  const line: CartLine = existing ? { ...existing, quantity, unitPrice, ...(priceType !== undefined ? { priceType: selectedType } : {}) } : { productId, name: p.name, quantity, unit: p.unit ?? "piece", unitPrice, ...(priceType !== undefined ? { priceType: selectedType } : {}), ...(p.photoUri ? { photoUri: p.photoUri } : {}) };
   return { ...data, saleDraft: { ...draft, lines: existing ? draft.lines.map((l) => l.productId === productId ? line : l) : [...draft.lines, line] } };
+}
+export function setCartPriceType(data: BusinessData, draftId: string, productId: string, priceType: PriceType): BusinessData {
+  const draft = data.saleDraft, product = data.products.find((p) => p.id === productId && !p.deletedAt);
+  const line = draft?.lines.find((l) => l.productId === productId);
+  if (!draft || draft.id !== draftId || !product || !line || line.unit !== (product.unit ?? "piece")) throw new Error("stockUnavailable");
+  const price = productSalePrice(product, priceType);
+  if ((line.priceType ?? "retail") === priceType) return data;
+  return { ...data, saleDraft: { ...draft, lines: draft.lines.map((l) => l.productId === productId ? { ...l, priceType, unitPrice: price } : l) } };
 }
 export function changeCartQuantity(data: BusinessData, draftId: string, productId: string, quantity: number): BusinessData {
   const draft = data.saleDraft;
@@ -65,7 +80,7 @@ export function changeCartQuantity(data: BusinessData, draftId: string, productI
   if (!draft || draft.id !== draftId || !line || !p || line.unit !== (p.unit ?? "piece") || !validQuantity(quantity, line.unit) || quantity > p.stock) throw new Error("stockUnavailable");
   return { ...data, saleDraft: { ...draft, lines: quantity === 0 ? draft.lines.filter((l) => l.productId !== productId) : draft.lines.map((l) => l.productId === productId ? { ...l, quantity } : l) } };
 }
-export function completeSale(data: BusinessData, draftId: string, input: { method: PaymentMethod; received: number; note: string; reference: string; createdAt: string }): BusinessData {
+export function completeSale(data: BusinessData, draftId: string, input: { method: PaymentMethod; received: number; note: string; reference: string; createdAt: string; duePlan?: DuePlanInput }): BusinessData {
   if (data.invoices?.some((i) => i.id === draftId)) return data;
   const draft = data.saleDraft;
   if (!draft || draft.id !== draftId || !draft.lines.length) throw new Error("emptyCart");
@@ -89,6 +104,7 @@ export function completeSale(data: BusinessData, draftId: string, input: { metho
   const items: InvoiceItem[] = draft.lines.map((line, index) => {
     const p = data.products.find((p) => p.id === line.productId && !p.deletedAt);
     if (!p || p.stock < line.quantity || (p.unit ?? "piece") !== line.unit) throw new Error("stockUnavailable");
+    if (line.priceType === "wholesale" && !hasWholesalePrice(p)) throw new Error("wholesaleUnavailable");
     const cost = lineAmount(p.cost, line.quantity);
     const consumed = consumeBatches(batched, p.id, line.quantity, input.createdAt);
     batched = { ...batched, productBatches: consumed.productBatches };
@@ -96,7 +112,7 @@ export function completeSale(data: BusinessData, draftId: string, input: { metho
     return { ...line, id: `${draft.id}-${index}`, unitCost: p.cost, cost, grossTotal: totals.lines[index], discount: discounts[index], tax: taxes[index], lineTotal: totals.lines[index] - discounts[index] + taxes[index], ...(consumed.allocations.length ? { batchAllocations: consumed.allocations } : {}) };
   });
   const invoice: Invoice = { id: draft.id, invoiceNumber, shopName: data.shopName, ...(data.businessSettings?.receiptFooter ? { receiptFooter: data.businessSettings.receiptFooter } : {}), ...(data.shopPhone ? { shopPhone: data.shopPhone } : {}), ...(customer ? { customerId: customer.id } : {}), customerName: customer?.name ?? "", items, subtotal: totals.subtotal, discount: totals.discount, tax: totals.tax, total: totals.total, amountReceived: input.received, amountPaid, amountDue, change, method: input.method, status: amountDue === 0 ? "paid" : amountPaid === 0 ? "due" : "partial", note: input.note, reference: input.reference, createdAt: input.createdAt };
-  return { ...data, saleDraft: undefined,
+  const result: BusinessData = { ...data, saleDraft: undefined,
     productBatches: batched.productBatches,
     products: data.products.map((p) => { const line = items.find((l) => l.productId === p.id); return line ? { ...p, stock: (quantityTicks(p.stock)! - quantityTicks(line.quantity)!) / 1000, updatedAt: input.createdAt } : p; }),
     sales: [...data.sales, ...items.map((l) => ({ id: l.id, invoiceId: invoice.id, productId: l.productId, name: l.name, quantity: l.quantity, total: l.lineTotal, cost: l.cost, unit: l.unit, tax: l.tax, discount: l.discount, grossTotal: l.grossTotal, createdAt: input.createdAt }))],
@@ -105,6 +121,8 @@ export function completeSale(data: BusinessData, draftId: string, input: { metho
     customers: (data.customers ?? []).map((c) => c.id === customer?.id ? { ...c, balance: (c.balance ?? 0) + amountDue } : c),
     stockMovements: [...(data.stockMovements ?? []), ...items.map((l) => { const p = data.products.find((p) => p.id === l.productId)!; return { id: `SALE-${l.id}`, saleId: invoice.id, productId: p.id, kind: "remove" as const, quantity: l.quantity, before: p.stock, after: (quantityTicks(p.stock)! - quantityTicks(l.quantity)!) / 1000, unit: l.unit, reason: invoiceNumber, notes: input.note, createdAt: input.createdAt }; })],
   };
+  if (input.duePlan && amountDue <= 0) throw new Error("invalidDuePlan");
+  return input.duePlan ? setDuePlan(result, invoice.id, input.duePlan, new Date(input.createdAt)) : result;
 }
 export function validInvoice(i: Invoice) {
   try {
@@ -116,7 +134,19 @@ export function validInvoice(i: Invoice) {
   } catch { return false; }
 }
 export function validPayment(p: Payment) { return !!p && nonempty(p.id) && nonempty(p.saleId) && methodValid(p.method) && moneyValue(p.amount) && text(p.reference) && dated(p.createdAt) && p.verified === false; }
+function validHeldSales(data: BusinessData) {
+  try {
+    if (data.heldSales === undefined) return true;
+    if (!Array.isArray(data.heldSales) || new Set(data.heldSales.map((h) => h.id)).size !== data.heldSales.length) return false;
+    for (const h of data.heldSales) {
+      if (!validDraft(h) || !h.lines.length || typeof h.label !== "string" || h.label.length > 80 || !dated(h.heldAt) || h.id === data.saleDraft?.id || data.invoices?.some((i) => i.id === h.id) || h.lines.some((l) => !data.products.some((p) => p.id === l.productId)) || h.customerId && !data.customers?.some((c) => c.id === h.customerId)) return false;
+      cartTotals(h);
+    }
+    return true;
+  } catch { return false; }
+}
 export function validPOS(data: BusinessData) {
+  if (!validHeldSales(data)) return false;
   if (data.saleDraft !== undefined && !validDraft(data.saleDraft)) return false;
   if (data.invoices !== undefined && (!Array.isArray(data.invoices) || data.invoices.some((i) => !validInvoice(i)) || new Set(data.invoices.map((i) => i.id)).size !== data.invoices.length || new Set(data.invoices.map((i) => i.invoiceNumber)).size !== data.invoices.length)) return false;
   if (data.payments !== undefined && (!Array.isArray(data.payments) || data.payments.some((p) => !validPayment(p)) || new Set(data.payments.map((p) => p.id)).size !== data.payments.length)) return false;

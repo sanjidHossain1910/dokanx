@@ -1,3 +1,13 @@
+import { conflictsBn } from "./conflicts";
+import { accountBn } from "./account";
+import { accountSyncBn } from './accountSync';
+import { cloudBackupBn } from "./cloudBackup";
+import { dueBn } from "./due";
+import { restockBn } from "./restock";
+import { securityBn } from "./security";
+import { stockCountBn } from "./stockCount";
+import { profitBn } from "./profit";
+import { sellingBn } from "./selling";
 import { flowsBn } from "./flows";
 import { purchaseBn } from "./purchase";
 import { businessBn } from "./business";
@@ -5,7 +15,11 @@ import { inventoryBn } from "./inventory";
 import { posBn } from "./pos";
 import { setupBn } from "./setup";
 import { profileSettingsBn } from "./profileSettings";
-const bn = {
+const bn = { conflicts: conflictsBn, accountSync:accountSyncBn, cloudBackup: cloudBackupBn, account: accountBn, due: dueBn, restock: restockBn,
+  security: securityBn,
+  stockCount: stockCountBn,
+  profit: profitBn,
+  selling: sellingBn,
   flows: flowsBn,
   profileSettings: profileSettingsBn,
   setup: setupBn,
@@ -25,9 +39,36 @@ const bn = {
     },
   },
   dashboard: {
-    showAmount: "{{label}} দেখান", hideAmount: "{{label}} লুকান", amountHidden: "টাকার পরিমাণ লুকানো আছে", autoHideHint: "২০ সেকেন্ড পরে নিজে থেকে আবার লুকাবে।",
+    businessSummary: "ব্যবসার সারাংশ",
+    salesSinceStart: "শুরু থেকে মোট বিক্রি",
+    netMargin: "নিট লাভের হার",
+    costsShare: "পণ্যের খরচ + অন্যান্য খরচ",
+    marginDescription: "নিট লাভের হার: {{value}}",
+    marginNote: "লাভের হার = খরচ বাদে লাভ ÷ কর ছাড়া বিক্রি। রেখায় লাভের অংশ দেখানো হয়; লোকসান হলে ঋণাত্মক শতাংশ দেখাবে।",
+    openBreakdown: "আদায় ও বাকির বিস্তারিত",
+    closeBreakdown: "বিস্তারিত বন্ধ করুন",
+    billCollected: "আদায়", billDue: "এখনো বাকি",
+    lifetime: "সর্বকালের মোট হিসাব",
+    allTime: "সব সময়",
+    totalSales: "মোট বিক্রি",
+    totalProfit: "মোট লাভ",
+    totalDue: "এখনো বাকি",
+    totalReceived: "মোট আদায়",
+    cashReceived: "নগদ আদায়",
+    digitalReceived: "ডিজিটাল আদায়",
+    netProfitHint: "কর, রিটার্ন ও খরচ বাদে",
+    dueHint: "ক্রেতাদের বর্তমান মোট বাকি",
+    receivedHint: "নগদ + ডিজিটাল, ফেরত বাদে",
+    cashHint: "বিক্রি + বাকি আদায় − নগদ ফেরত",
+    digitalHint: "বিকাশ, নগদ ও কার্ড · ফেরত বাদে",
+    receiptsNote: "আদায়ের হিসাবে পরে পাওয়া বাকি টাকাও আছে; ফেরত দেওয়া টাকা বাদ যায়। নগদ আদায় ক্যাশবক্সের বর্তমান টাকা নয়—কেনাকাটা ও খরচসহ হিসাব ক্যাশ ডে-তে দেখুন।",
+    legacyReceiptsNote: "পুরোনো যেসব বিক্রির পেমেন্ট রেকর্ড নেই, সেগুলো বিক্রি ও লাভে আছে; নগদ বা ডিজিটাল আদায়ে ধরা হয়নি।",
+    dueSales: "বাকি / আংশিক পরিশোধের বিক্রি দেখুন",
+    paymentFilter: {"all": "সব পেমেন্ট", "outstanding": "বাকি / আংশিক", "paid": "সম্পূর্ণ পরিশোধ"},
+    showAmount: "{{label}} দেখান", hideAmount: "{{label}} লুকান", amountHidden: "টাকার পরিমাণ লুকানো আছে", autoHideHint: "{{seconds}} সেকেন্ড পরে নিজে থেকে আবার লুকাবে।",
     title: "ড্যাশবোর্ড", sales: "বিক্রয়", overview: "আপনার ব্যবসার আজকের সারসংক্ষেপ।", morning: "সুপ্রভাত", afternoon: "শুভ দুপুর", evening: "শুভ সন্ধ্যা", night: "শুভ রাত্রি",
     today: "আজকের হিসাব", purchase: "ক্রয়", profit: "লাভ", expense: "খরচ", quickActions: "দ্রুত কাজ", customers: "ক্রেতাগণ", buy: "পণ্য ক্রয়",
+    bestSellers: "বেশি বিক্রি হওয়া পণ্য", bestSellersHint: "গত ৩০ দিনে সবচেয়ে বেশি বার বিক্রি হয়েছে", soldInSales: "{{quantity}}টি বিক্রয়ে ছিল", noBestSellers: "বিক্রয় সম্পন্ন হলে এখানে বেশি বিক্রি হওয়া পণ্য দেখাবে।",
     inventory: "স্টকের অবস্থা", totalProducts: "মোট পণ্য", lowStock: "কম স্টক", outOfStock: "স্টক শেষ", viewAll: "সব দেখুন", week: "এই সপ্তাহের বিক্রয়", weeklyTotal: "এই সপ্তাহে মোট",
     alerts: "কম স্টকের সতর্কতা", remaining: "বাকি {{quantity}}টি", noAlerts: "আপনার স্টক ঠিক আছে!", noAlertsBody: "এই মুহূর্তে কোনো পণ্যের স্টক বাড়াতে হবে না।", noSales: "পরের বিক্রয় থেকেই শুরু হোক।", noSalesBody: "সাপ্তাহিক চিত্র দেখতে একটি বিক্রয় যোগ করুন।",
     noProducts: "চলুন দোকানটি সাজিয়ে নিই", noProductsBody: "প্রথম পণ্য যোগ করুন, বিক্রয় লিখুন আর এখানেই ব্যবসার হিসাব দেখুন।",
@@ -45,5 +86,3 @@ const bn = {
 } as const;
 
 export default bn;
-
-

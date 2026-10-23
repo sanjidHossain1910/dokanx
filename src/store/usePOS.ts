@@ -3,7 +3,7 @@ import { useBusiness } from "./BusinessProvider";
 import type { BusinessData } from "./business";
 import { cartTotals } from "./pos";
 
-const errors = ["cashDayClosed", "expiredStock", "stockUnavailable", "invalidCart", "invalidTotals", "invalidDiscount", "invalidPayment", "walletUnavailable", "customerRequired", "duplicateInvoice", "invalidCustomer", "duplicateCustomer", "productNotFound", "invalidQuantity", "invalidRate"];
+const errors = ["invalidPriceType", "wholesaleUnavailable", "invalidHeldSale", "heldMissing", "heldChanged", "activeSaleExists", "heldProductChanged", "cashDayClosed", "expiredStock", "stockUnavailable", "invalidCart", "invalidTotals", "invalidDiscount", "invalidPayment", "walletUnavailable", "customerRequired", "duplicateInvoice", "invalidCustomer", "duplicateCustomer", "productNotFound", "invalidQuantity", "invalidRate"];
 export function usePOS() {
   const store = useBusiness();
   const { update } = store;

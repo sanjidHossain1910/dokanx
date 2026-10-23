@@ -1,12 +1,11 @@
 import { Directory, File, Paths } from "expo-file-system";
 import * as Crypto from "expo-crypto";
-import * as Sharing from "expo-sharing";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fromByteArray, toByteArray } from "base64-js";
 import { decodeBackup, encodeBackup, mapBackupImages, BACKUP_LIMIT, type BackupAsset, type BackupManifest } from "./backupFormat";
 import { parseBusiness, type BusinessData } from "./business";
 const hash = (bytes: Uint8Array) => Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, fromByteArray(bytes));
-export async function createBackup(data: BusinessData) {
+export async function createBackup(data: BusinessData, options: { temporary?: boolean; metadataKey?:string } = {}) {
   parseBusiness(JSON.stringify(data));
   const uris = new Map<string, string>();
   const portable = mapBackupImages(data, (uri) => { let id = uris.get(uri); if (!id) { id = `assets/${Crypto.randomUUID()}`; uris.set(uri, id); } return `asset://${id}`; });
@@ -24,17 +23,53 @@ export async function createBackup(data: BusinessData) {
   const preferences: NonNullable<BackupManifest["preferences"]> = { ...(language === "bn" || language === "en" ? { language } : {}), ...(theme === "light" || theme === "dark" || theme === "system" ? { theme } : {}) };
   const createdAt = new Date().toISOString(); const manifest: BackupManifest = { format: "DokanX", version: 1, createdAt, data: portable, assets: metadata, preferences };
   const bytes = encodeBackup(manifest, assets);
-  const folder = new Directory(Paths.document, "backups"); folder.create({ intermediates: true, idempotent: true });
+  const folder = new Directory(options.temporary ? Paths.cache : Paths.document, options.temporary ? "cloud-backups" : "backups"); folder.create({ intermediates: true, idempotent: true });
   const file = new File(folder, `DokanX-${createdAt.replace(/[:.]/g, "-")}-${Crypto.randomUUID().slice(0, 8)}.dokanx`);
-  try { file.write(bytes); } catch (e) { if (file.exists) file.delete(); throw e; }
-  await AsyncStorage.setItem("@dokanx/last-backup/v1", JSON.stringify({ uri: file.uri, createdAt })).catch(() => {});
+  try {
+    file.write(bytes);
+    // Never advertise an archive as ready until the receiving-phone restore path accepts it.
+    await readBackup(file.uri);
+  } catch (e) { if (file.exists) file.delete(); throw e; }
+  if (!options.temporary) await AsyncStorage.setItem(options.metadataKey ?? "@dokanx/last-backup/v1", JSON.stringify({ uri: file.uri, createdAt })).catch(() => {});
   return { uri: file.uri, createdAt };
 }
 export async function readBackup(uri: string) {
-  const file = new File(uri); if (!file.exists || file.size > BACKUP_LIMIT) throw new Error("invalidBackup");
-  const result = decodeBackup(await file.bytes());
-  for (const asset of result.manifest.assets) if (await hash(result.assets[asset.id]) !== asset.hash) throw new Error("invalidBackup");
-  return result;
+  let backupStage = "file", length = 0;
+  try {
+    // Materialise our own byte array across Expo Go/native module versions and
+    // document providers. Metadata such as `exists` can be unavailable for a
+    // readable content URI; the actual read and archive validation are authoritative.
+    let encoded: string;
+    try {
+      const file = new File(uri); if (file.size > BACKUP_LIMIT) throw new Error("invalidBackup");
+      encoded = await file.base64();
+    } catch (error) {
+      if (error instanceof Error && error.message === "invalidBackup") throw error;
+      if (typeof __DEV__ !== "undefined" && __DEV__) console.info("[backup] native reader fallback", {
+        message: String(error instanceof Error ? error.message : "nativeReadFailed")
+          .replace(/(?:file|content):\/\/[^\s'"\)]+|\/data\/[^\s'"\)]+/g, "<local-file>").slice(0, 300),
+      });
+      const legacy = await import("expo-file-system/legacy");
+      const info = await legacy.getInfoAsync(uri).catch(() => undefined);
+      if (info?.exists && "size" in info && info.size > BACKUP_LIMIT) throw new Error("invalidBackup");
+      encoded = await legacy.readAsStringAsync(uri, { encoding: legacy.EncodingType.Base64, position: 0, length: BACKUP_LIMIT + 1 });
+    }
+    if (typeof encoded !== "string" || !encoded.length || encoded.length > Math.ceil(BACKUP_LIMIT / 3) * 4)
+      throw new Error("invalidBackup");
+    const bytes = toByteArray(encoded); length = bytes.length; backupStage = "archive";
+    const result = decodeBackup(bytes);
+    backupStage = "images";
+    for (const asset of result.manifest.assets) if (await hash(result.assets[asset.id]) !== asset.hash) throw new Error("invalidBackup");
+    return result;
+  } catch (error) {
+    const stage = (error as { backupStage?: string })?.backupStage ?? backupStage;
+    if (typeof __DEV__ !== "undefined" && __DEV__) console.info("[backup] validation failed", {
+      stage, bytes: length,
+      message: String(error instanceof Error ? error.message : "validationFailed")
+        .replace(/(?:file|content):\/\/[^\s'"\)]+|\/data\/[^\s'"\)]+/g, "<local-file>").slice(0, 300),
+    });
+    throw Object.assign(new Error("invalidBackup"), { backupStage: stage });
+  }
 }
 export async function stageRestore(backup: Awaited<ReturnType<typeof readBackup>>) {
   const folder = new Directory(Paths.document, "restored-assets", Crypto.randomUUID()); folder.create({ intermediates: true });
@@ -49,4 +84,4 @@ export async function stageRestore(backup: Awaited<ReturnType<typeof readBackup>
     return { data, cleanup: () => { if (folder.exists) folder.delete(); } };
   } catch (e) { if (folder.exists) folder.delete(); throw e; }
 }
-export async function shareBackup(uri: string) { if (!await Sharing.isAvailableAsync()) throw new Error("backupFailed"); await Sharing.shareAsync(uri, { mimeType: "application/octet-stream", UTI: "public.data", dialogTitle: "DokanX backup" }); }
+export { shareBackup, saveBackup } from "./backupExport";

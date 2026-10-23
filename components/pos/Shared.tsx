@@ -1,3 +1,4 @@
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import Header from "@/components/ui/Header";
 import { useKeyboardVisible } from "@/hooks/useKeyboardVisible";
 import InventorySheet from "@/components/business/InventorySheet";
@@ -17,19 +18,20 @@ export function POSFrame({ title, subtitle, back = true, right, children, footer
   const { ready, error, retry } = useBusiness();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { formMaxWidth, pageMaxWidth, gutter } = useResponsiveLayout();
   const keyboardVisible = useKeyboardVisible();
   const showFooter = footer && !keyboardVisible;
   return <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: colors.background }}>
-    {hideHeader ? null : back ? <Header title={title} description={subtitle} rightSection={right} fallbackHref="/(tabs)/sales" /> : <View className="flex-row items-center px-5 pt-4 pb-3" style={{ gap: 12 }}><View style={{ flex: 1 }}><Text accessibilityRole="header" style={{ color: colors.text, fontSize: 26, lineHeight: 38, fontWeight: "700" }}>{title}</Text><Text style={{ color: colors.muted, fontSize: 14, lineHeight: 23 }}>{subtitle}</Text></View>{right}</View>}
+    {hideHeader ? null : back ? <Header title={title} description={subtitle} rightSection={right} fallbackHref="/(tabs)/sales" /> : <View className="flex-row items-center px-5 pt-4 pb-3" style={{ gap: 12, width: "100%", maxWidth: pageMaxWidth, alignSelf: "center", paddingHorizontal: gutter }}><View style={{ flex: 1 }}><Text accessibilityRole="header" style={{ color: colors.text, fontSize: 26, lineHeight: 38, fontWeight: "700" }}>{title}</Text><Text style={{ color: colors.muted, fontSize: 14, lineHeight: 23 }}>{subtitle}</Text></View>{right}</View>}
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      {error ? <View style={{ padding: 24, gap: 16 }}><Text style={{ color: colors.danger }}>{t("business.storageUnavailable")}</Text><Button title={t("business.retry")} onPress={retry} /></View> : !ready ? <ActivityIndicator color={colors.primary} /> : scroll ? <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + (showFooter ? 220 : keyboardVisible ? 24 : 125), gap: 16, width: "100%", maxWidth: 720, alignSelf: "center" }}>{children}</ScrollView> : children}
-      {showFooter && ready && !error && <View style={{ position: "absolute", left: 0, right: 0, bottom: insets.bottom + 100, backgroundColor: colors.card, borderTopWidth: 1, borderColor: colors.border, paddingHorizontal: 20, paddingVertical: 12 }}><View style={{ maxWidth: 680, width: "100%", alignSelf: "center" }}>{footer}</View></View>}
+      {error ? <View style={{ padding: 24, gap: 16 }}><Text style={{ color: colors.danger }}>{t("business.storageUnavailable")}</Text><Button title={t("business.retry")} onPress={retry} /></View> : !ready ? <ActivityIndicator color={colors.primary} /> : scroll ? <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ padding: gutter, paddingBottom: insets.bottom + (showFooter ? 220 : keyboardVisible ? 24 : 125), gap: 16, width: "100%", maxWidth: formMaxWidth, alignSelf: "center" }}>{children}</ScrollView> : children}
+      {showFooter && ready && !error && <View style={{ position: "absolute", left: 0, right: 0, bottom: insets.bottom + 100, backgroundColor: colors.card, borderTopWidth: 1, borderColor: colors.border, paddingHorizontal: gutter, paddingVertical: 12 }}><View style={{ maxWidth: formMaxWidth - 40, width: "100%", alignSelf: "center" }}>{footer}</View></View>}
     </KeyboardAvoidingView>
   </SafeAreaView>;
 }
 export function ProductPhoto({ uri, size = 64, name }: { uri?: string; size?: number; name: string }) {
   const { colors } = useTheme();
-  return <View style={{ width: size, height: size, borderRadius: 12, backgroundColor: colors.elevated, overflow: "hidden", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{uri ? <Image source={{ uri }} accessibilityLabel={name} contentFit="cover" style={{ width: size, height: size }} /> : <Package size={size * 0.45} color={colors.muted} />}</View>;
+  return <View style={{ width: size, height: size, borderRadius: 12, backgroundColor: uri ? colors.productPhoto : colors.elevated, overflow: "hidden", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{uri ? <Image source={{ uri }} accessibilityLabel={name} contentFit="cover" style={{ width: size, height: size }} /> : <Package size={size * 0.45} color={colors.muted} />}</View>;
 }
 export function SummaryRow({ label, value, strong = false, positive = false }: { label: string; value: string; strong?: boolean; positive?: boolean }) {
   const { colors } = useTheme();
@@ -38,7 +40,7 @@ export function SummaryRow({ label, value, strong = false, positive = false }: {
 export function POSIssue({ issue }: { issue?: string }) {
   const { t, i18n } = useTranslation();
   const ui = useUi();
-  return issue ? <Text accessibilityRole="alert" style={ui.error}>{t(`${i18n.exists(`flows.${issue}`) ? "flows" : "pos"}.${issue}`)}</Text> : null;
+  return issue ? <Text accessibilityRole="alert" style={ui.error}>{t(`${i18n.exists(`selling.${issue}`) ? "selling" : i18n.exists(`flows.${issue}`) ? "flows" : "pos"}.${issue}`)}</Text> : null;
 }
 export function ClearCartButton() {
   const { colors } = useTheme();

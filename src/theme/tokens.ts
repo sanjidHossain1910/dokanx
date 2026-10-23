@@ -3,7 +3,7 @@ export const lightTheme = {
   text: "#0F172A", muted: "#64748B", border: "#E2E8F0", success: "#16A34A",
   warning: "#F59E0B", danger: "#EF4444", orange: "#EA580C", primarySoft: "#EFF6FF",
   successSoft: "#F0FDF4", warningSoft: "#FFFBEB", dangerSoft: "#FEF2F2", orangeSoft: "#FFF7ED",
-  onPrimary: "#FFFFFF", shadow: "#0F172A", overlay: "#00000099",
+  onPrimary: "#FFFFFF", shadow: "#0F172A", overlay: "#00000099", productPhoto: "#FFFFFF",
 };
 export type ThemeTokens = typeof lightTheme;
 export const darkTheme: ThemeTokens = {
@@ -11,7 +11,7 @@ export const darkTheme: ThemeTokens = {
   text: "#F8FAFC", muted: "#94A3B8", border: "#334155", success: "#22C55E",
   warning: "#FBBF24", danger: "#F87171", orange: "#FB923C", primarySoft: "#172554",
   successSoft: "#052E16", warningSoft: "#422006", dangerSoft: "#450A0A", orangeSoft: "#431407",
-  onPrimary: "#FFFFFF", shadow: "#000000", overlay: "#00000099",
+  onPrimary: "#FFFFFF", shadow: "#000000", overlay: "#00000099", productPhoto: "#111827",
 };
 export type ThemeMode = "light" | "dark" | "system";
 export const isThemeMode = (value: unknown): value is ThemeMode => value === "light" || value === "dark" || value === "system";

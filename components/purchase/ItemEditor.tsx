@@ -1,3 +1,4 @@
+import DateTimeField from "@/components/ui/DateTimeField";
 import InventorySheet from "@/components/business/InventorySheet";
 import { Button, Field, money, useUi } from "@/components/business/Screen";
 import type { Product } from "@/src/store/business";
@@ -25,7 +26,7 @@ export default function ItemEditor({ product, onClose }: { product: Product; onC
     <Field label={t("purchase.cost", { unit })} value={cost} onChangeText={setCost} keyboardType="decimal-pad" editable={!p.busy} />
     <Text style={ui.subtitle}>{t("flows.optionalBatch")}</Text>
     <Field label={t("flows.batch")} value={batchNumber} onChangeText={setBatchNumber} editable={!p.busy} />
-    <Field label={t("flows.expiryDate")} value={expiryDate} onChangeText={setExpiryDate} placeholder="2027-12-31" editable={!p.busy} />
+    <DateTimeField label={t("flows.expiryDate")} value={expiryDate} onChange={setExpiryDate} disabled={p.busy} clearable />
     {total !== null && <Text style={ui.subtitle}>{t("purchase.total")}: {money(total)}</Text>}
     <PurchaseIssue issue={p.issue} />
     <Button title={t(line ? "purchase.updateItem" : "purchase.addItem")} disabled={p.busy || total === null} onPress={() => { if (count !== null && price !== null) void p.run((data) => setPurchaseItem(data, product.id, count, price, { batchNumber: batchNumber.trim() || undefined, expiryDate: expiryDate.trim() || undefined })).then((ok) => { if (ok) onClose(); }); }} />

@@ -1,5 +1,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { parseBusiness, type BusinessData } from "./business.ts";
+export { parseBusiness } from './business.ts';
+export { canonical, splitRecords, joinRecords, applyChanges } from '../cloudBackup/records.ts';
 export const BACKUP_LIMIT = 60_000_000;
 export type BackupAsset = { id: string; bytes: number; hash: string };
 export type BackupManifest = { format: "DokanX"; version: 1; createdAt: string; data: BusinessData; assets: BackupAsset[]; preferences?: { language?: "en" | "bn"; theme?: "light" | "dark" | "system" } };
@@ -21,6 +23,7 @@ export function encodeBackup(manifest: BackupManifest, assets: Record<string, Ui
   return bytes;
 }
 export function decodeBackup(bytes: Uint8Array): { manifest: BackupManifest; assets: Record<string, Uint8Array> } {
+  let backupStage = "archive";
   try {
     if (!bytes.length || bytes.length > BACKUP_LIMIT) throw new Error();
     let total = 0, count = 0;
@@ -29,15 +32,19 @@ export function decodeBackup(bytes: Uint8Array): { manifest: BackupManifest; ass
       if (count > 2001 || total > BACKUP_LIMIT || !Number.isSafeInteger(f.originalSize) || f.originalSize < 1 || (f.name === "manifest.json" ? f.originalSize > 15_000_000 : !/^assets\/[a-f0-9-]+$/.test(f.name) || f.originalSize > 3_000_000)) throw new Error();
       return true;
     } });
+    backupStage = "manifest";
     if (!files["manifest.json"]) throw new Error();
     const manifest: BackupManifest = JSON.parse(strFromU8(files["manifest.json"]));
     if (manifest.format !== "DokanX" || manifest.version !== 1 || typeof manifest.createdAt !== "string" || !Number.isFinite(Date.parse(manifest.createdAt)) || !Array.isArray(manifest.assets) || manifest.assets.length > 2000 || Object.keys(files).length !== manifest.assets.length + 1 || new Set(manifest.assets.map((a) => a.id)).size !== manifest.assets.length) throw new Error();
     const used = new Set<string>();
     if (manifest.preferences !== undefined && (!manifest.preferences || typeof manifest.preferences !== "object" || manifest.preferences.language !== undefined && !["en", "bn"].includes(manifest.preferences.language) || manifest.preferences.theme !== undefined && !["light", "dark", "system"].includes(manifest.preferences.theme))) throw new Error();
+    backupStage = "images";
     for (const asset of manifest.assets) if (!/^assets\/[a-f0-9-]+$/.test(asset.id) || !Number.isSafeInteger(asset.bytes) || asset.bytes < 1 || !/^[a-f0-9]{64}$/.test(asset.hash) || files[asset.id]?.length !== asset.bytes) throw new Error();
+    backupStage = "records";
     parseBusiness(JSON.stringify(mapBackupImages(manifest.data, (uri) => { if (!uri.startsWith("asset://") || !manifest.assets.some((a) => a.id === uri.slice(8))) throw new Error(); used.add(uri.slice(8)); return `file:///backup-validation/${uri.slice(8)}`; })));
+    backupStage = "images";
     if (used.size !== manifest.assets.length || count !== manifest.assets.length + 1) throw new Error();
     delete files["manifest.json"];
     return { manifest, assets: files };
-  } catch { throw new Error("invalidBackup"); }
+  } catch { throw Object.assign(new Error("invalidBackup"), { backupStage }); }
 }

@@ -1,3 +1,4 @@
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useTheme } from "@/src/theme/ThemeProvider";
 import { router, type Href } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
@@ -17,13 +18,14 @@ export interface HeaderProps {
 export default function Header({ title, description, rightSection, onBack, fallbackHref = "/(tabs)" }: HeaderProps) {
   const { colors } = useTheme();
   const { t } = useTranslation();
+  const { pageMaxWidth } = useResponsiveLayout();
   const goBack = () => {
     if (onBack) onBack();
     else if (router.canGoBack()) router.back();
     else router.replace(fallbackHref);
   };
   return <View style={{ backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-    <View className="mx-auto w-full flex-row items-center gap-3 px-4 py-3" style={{ maxWidth: 720, minHeight: 72 }}>
+    <View className="mx-auto w-full flex-row items-center gap-3 px-4 py-3" style={{ maxWidth: pageMaxWidth, minHeight: 72 }}>
       <Pressable accessibilityRole="button" accessibilityLabel={t("business.back")} onPress={goBack}
         style={({ pressed }) => ({ width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: pressed ? colors.elevated : "transparent" })}>
         <ArrowLeft size={24} strokeWidth={2} color={colors.text} />

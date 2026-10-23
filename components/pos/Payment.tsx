@@ -1,3 +1,6 @@
+import DuePlanForm, { ReminderNotice } from "@/components/reminders/DuePlanForm";
+import { type DuePlanInput } from "@/src/store/dueReminders";
+import { useSecurity } from "@/src/security/SecurityProvider";
 import { Button, Field, money, useUi } from "@/components/business/Screen";
 import CustomerSelector from "./CustomerSelector";
 import { POSFrame, POSIssue, SummaryRow } from "./Shared";
@@ -17,6 +20,7 @@ import Animated, { LinearTransition, ReduceMotion } from "react-native-reanimate
 const METHODS = [{ id: "cash", Icon: Banknote }, { id: "bkash", Icon: Banknote }, { id: "nagad", Icon: Banknote }, { id: "due", Icon: HandCoins }] as const;
 export default function PaymentScreen() {
   const pos = usePOS();
+  const { controller: security } = useSecurity();
   const { colors } = useTheme();
   const ui = useUi();
   const { t } = useTranslation();
@@ -24,6 +28,7 @@ export default function PaymentScreen() {
   const [receivedInput, setReceivedInput] = useState<string>();
   const [note, setNote] = useState("");
   const [reference, setReference] = useState("");
+  const [duePlan, setDuePlan] = useState<DuePlanInput>();
   const methods = METHODS.filter(({ id }) => id !== "bkash" && id !== "nagad" || pos.data.paymentSettings?.[id].enabled);
   const wallet = method === "bkash" || method === "nagad" ? pos.data.paymentSettings?.[method] : undefined;
   const lock = useRef(false);
@@ -38,8 +43,8 @@ export default function PaymentScreen() {
     if (!valid || received === null) { pos.setIssue(method === "due" && !pos.draft.customerId ? "customerRequired" : "invalidPayment"); return; }
     lock.current = true;
     const id = pos.draft.id;
-    const saved = await pos.run((data) => completeSale(data, id, { method, received, note: note.trim(), reference: reference.trim(), createdAt: new Date().toISOString() }));
-    if (saved) router.replace({ pathname: "/(tabs)/sales/receipt", params: { saleId: id, success: "1" } });
+    const saved = await pos.run((data) => completeSale(data, id, { method, received, note: note.trim(), reference: reference.trim(), createdAt: new Date().toISOString(), ...(method === "due" && due > 0 && duePlan ? { duePlan } : {}) }));
+    if (saved) { security.grantReceipt(id); router.replace({ pathname: "/(tabs)/sales/receipt", params: { saleId: id, success: "1" } }); }
     lock.current = false;
   };
   return <POSFrame title={t("pos.payment")}>
@@ -56,11 +61,11 @@ export default function PaymentScreen() {
         {wallet.qrUri && <QrPreview uri={wallet.qrUri} label={t("pos.walletQr", { method: t(`pos.${method}`) })} number={wallet.phone} />}
         <Text style={ui.text}>{t("pos.walletPayHint")}</Text>
       </View>}
-      {method === "due" ? <><Text style={ui.text}>{t("pos.dueHint")}</Text><CustomerSelector required /></> : method !== "cash" && <Text style={ui.text}>{t("pos.manualHint")}</Text>}
+      {method === "due" ? <><Text style={ui.text}>{t("pos.dueHint")}</Text><CustomerSelector required />{due > 0 && <DuePlanForm value={duePlan} onChange={setDuePlan} disabled={pos.busy} />}<ReminderNotice /></> : method !== "cash" && <Text style={ui.text}>{t("pos.manualHint")}</Text>}
       <SummaryRow label={t(method === "due" ? "pos.remaining" : "pos.change")} value={money(method === "due" ? due : change)} strong positive={method !== "due"} />
       {method !== "cash" && method !== "due" && <><Text style={ui.text}>{t("pos.exactHint")}</Text><Field label={t("pos.reference")} value={reference} onChangeText={setReference} editable={!pos.busy} /></>}
       <Field label={t("pos.note")} value={note} onChangeText={setNote} multiline editable={!pos.busy} />
-      <POSIssue issue={pos.issue || pos.totalError} />
+      {pos.issue === "invalidDuePlan" ? <Text style={ui.error}>{t("due.invalid")}</Text> : <POSIssue issue={pos.issue || pos.totalError} />}
       <Button title={t(pos.busy ? "pos.saving" : "pos.complete")} disabled={pos.busy || !pos.totals || !valid} onPress={() => void complete()} />
     </>}
   </POSFrame>;

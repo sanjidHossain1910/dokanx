@@ -1,31 +1,49 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
+import { useSecurity } from "../security/SecurityProvider";
+import { useBusiness } from "../store/BusinessProvider";
+import { amountVisibilitySettings } from "../store/businessSettings";
 
-/** Reveals are temporary and never persisted across screens or app sessions. */
+/** Masking is optional; report authentication always remains independent. */
 export function useAmountVisibility() {
-  const [visible, setVisible] = useState(false);
-  const revealed = useRef(false);
+  const { state: security, requestReports } = useSecurity();
+  const { data, workspace, restoreEpoch } = useBusiness();
+  const { enabled, seconds } = amountVisibilitySettings(data.businessSettings);
+  const key = `${workspace}:${restoreEpoch}:${enabled}:${seconds}`;
+  const [shownFor, setShownFor] = useState<string | null>(null);
+  const revealed = useRef<string | null>(null);
+  const request = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const hide = useCallback(() => {
+  const clearReveal = useCallback((invalidateRequest = true) => {
+    if (invalidateRequest) request.current++;
     if (timer.current !== undefined) clearTimeout(timer.current);
     timer.current = undefined;
-    revealed.current = false;
-    setVisible(false);
+    revealed.current = null;
   }, []);
-  const toggle = useCallback(() => {
-    if (revealed.current) { hide(); return; }
-    revealed.current = true;
-    setVisible(true);
-    timer.current = setTimeout(hide, 20_000);
-  }, [hide]);
-  useFocusEffect(useCallback(() => { hide(); return hide; }, [hide]));
+  const hide = useCallback((invalidateRequest = true) => {
+    clearReveal(invalidateRequest);
+    setShownFor(null);
+  }, [clearReveal]);
+  const toggle = useCallback(async () => {
+    if (revealed.current === key && security.reportsUnlocked) { hide(); return; }
+    hide();
+    const ticket = ++request.current;
+    if (!await requestReports() || ticket !== request.current) return;
+    revealed.current = key;
+    setShownFor(key);
+    if (enabled) timer.current = setTimeout(hide, seconds * 1000);
+  }, [hide, requestReports, key, enabled, seconds, security.reportsUnlocked]);
+  useFocusEffect(useCallback(() => { if (revealed.current !== key) hide(); return hide; }, [hide, key]));
   useEffect(() => {
-    const subscription = AppState.addEventListener("change", (state) => { if (state !== "active") hide(); });
+    const subscription = AppState.addEventListener("change", (state) => {
+      // A system biometric prompt may briefly make iOS inactive.
+      if (state !== "active") hide(state !== "inactive");
+    });
     return () => {
       subscription.remove();
-      if (timer.current !== undefined) clearTimeout(timer.current);
+      clearReveal();
     };
-  }, [hide]);
-  return { visible, toggle };
+  }, [hide, clearReveal]);
+  return { visible: (!enabled || shownFor === key) && security.reportsUnlocked, toggle };
 }

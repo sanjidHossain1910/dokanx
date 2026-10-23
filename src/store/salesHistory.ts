@@ -7,6 +7,7 @@ export function localDateInput(text: string) {
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
 }
 export function historyRange(period: string, now: Date, from: string, to: string) {
+  if (period === "all") return { start: -Infinity, end: Infinity };
   let start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   let end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   if (period === "week") { start.setDate(start.getDate() - (start.getDay() + 6) % 7); end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7); }

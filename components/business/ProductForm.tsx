@@ -1,3 +1,4 @@
+import DateTimeField from "@/components/ui/DateTimeField";
 import { Button, Field, Screen, useUi } from "@/components/business/Screen";
 import SelectField from "@/components/ui/SelectField";
 import SquareFrame from "@/components/ui/SquareFrame";
@@ -38,6 +39,8 @@ export default function ProductForm({ product, purchase = false }: { product?: P
   const [category, setCategory] = useState(product?.category ?? "");
   const [unit, setUnit] = useState<UnitId>(product?.unit ?? "piece");
   const [price, setPrice] = useState(product ? (product.price / 100).toFixed(2) : "");
+  const [wholesaleEnabled, setWholesaleEnabled] = useState(product?.wholesalePrice !== undefined);
+  const [wholesalePrice, setWholesalePrice] = useState(product?.wholesalePrice !== undefined ? (product.wholesalePrice / 100).toFixed(2) : "");
   const [cost, setCost] = useState(product ? (product.cost / 100).toFixed(2) : "");
   const [stock, setStock] = useState(product ? String(product.stock) : purchase ? "1" : "");
   const [addToPurchase, setAddToPurchase] = useState(true);
@@ -74,7 +77,7 @@ export default function ProductForm({ product, purchase = false }: { product?: P
   const changeUnit = (value: UnitId) => {
     if (value === unit) return;
     if (product && product.stock > 0) { setError("unitHasStock"); return; }
-    setUnit(value); setStock(product ? "0" : ""); setPrice(""); setCost(""); setThreshold(""); setError(""); setFieldErrors({});
+    setUnit(value); setStock(product ? "0" : ""); setPrice(""); setWholesalePrice(""); setCost(""); setThreshold(""); setError(""); setFieldErrors({});
   };
   const createCategory = async () => {
     if (saving.current || picking.current) return;
@@ -109,11 +112,13 @@ export default function ProductForm({ product, purchase = false }: { product?: P
     if (saving.current || picking.current) return;
     if (!product && (batchNumber.trim() || expiryDate.trim()) && (!batchNumber.trim() || !validExpiryDate(expiryDate.trim()))) { setError("invalidBatch"); return; }
     const priceCents = parseMoneyInput(price), costCents = parseMoneyInput(cost), quantity = product ? product.stock : parseQuantityInput(stock, unit);
+    const wholesaleCents = wholesaleEnabled ? parseMoneyInput(wholesalePrice) : undefined;
     const lowStockThreshold = threshold.trim() ? parseQuantityInput(threshold, unit) : data.businessSettings?.lowStockDefault ?? 5;
     const errors: Record<string, string> = {};
     if (!name.trim()) errors.name = "requiredName";
     if (!category.trim()) errors.category = "requiredCategory";
     if (priceCents === null) errors.price = "invalidPrice";
+    if (wholesaleEnabled && (wholesaleCents === null || wholesaleCents === undefined || wholesaleCents <= 0)) errors.wholesale = "invalidWholesale";
     if (costCents === null) errors.cost = "invalidPrice";
     if (quantity === null || purchase && addToPurchase && quantity <= 0) errors.stock = "invalidStock";
     if (lowStockThreshold === null) errors.threshold = "invalidThreshold";
@@ -130,7 +135,7 @@ export default function ProductForm({ product, purchase = false }: { product?: P
         catch { throw new Error("photoSaveFailed"); }
       }
       const stamp = new Date().toISOString();
-      const next: Product = { id: productId, name: name.trim(), barcode: barcode.trim(), category, price: priceCents, cost: costCents, stock: quantity, unit, unitGroup: group, photoUri, lowStockThreshold, description: description.trim(), createdAt: product?.createdAt ?? stamp, updatedAt: stamp };
+      const next: Product = { id: productId, name: name.trim(), barcode: barcode.trim(), category, price: priceCents, wholesalePrice: wholesaleEnabled ? wholesaleCents! : undefined, cost: costCents, stock: quantity, unit, unitGroup: group, photoUri, lowStockThreshold, description: description.trim(), createdAt: product?.createdAt ?? stamp, updatedAt: stamp };
       await update((current) => {
         if (purchase) {
           if (!current.purchaseDraft) throw new Error("saveFailed");
@@ -141,7 +146,7 @@ export default function ProductForm({ product, purchase = false }: { product?: P
         return !product && expiryDate.trim() ? addProductBatch(added, { id: `BATCH-${productId}`, productId, batchNumber: batchNumber.trim(), expiryDate: expiryDate.trim(), quantity, createdAt: stamp }) : added;
       });
       committed = true;
-      if (product?.photoUri && product.photoUri !== photoUri && !data.purchaseDraft?.lines.some((l) => l.photoUri === product.photoUri) && !data.purchaseInvoices?.some((i) => i.items.some((l) => l.photoUri === product.photoUri)) && !data.saleDraft?.lines.some((l) => l.photoUri === product.photoUri) && !data.invoices?.some((i) => i.items.some((l) => l.photoUri === product.photoUri))) removeUnsavedProductPhoto(product.photoUri);
+      if (product?.photoUri && product.photoUri !== photoUri && !data.purchaseDraft?.lines.some((l) => l.photoUri === product.photoUri) && !data.purchaseInvoices?.some((i) => i.items.some((l) => l.photoUri === product.photoUri)) && !data.saleDraft?.lines.some((l) => l.photoUri === product.photoUri) && !data.heldSales?.some((h) => h.lines.some((l) => l.photoUri === product.photoUri)) && !data.invoices?.some((i) => i.items.some((l) => l.photoUri === product.photoUri)) && !data.stockCounts?.some((c) => c.items.some((l) => l.photoUri === product.photoUri))) removeUnsavedProductPhoto(product.photoUri);
       if (mounted.current && purchase) router.dismissTo("/business/purchases/items");
       else if (mounted.current) router.dismissTo(product ? { pathname: "/inventory/product", params: { productId, saved: "1" } } : { pathname: "/(tabs)/packege", params: { saved: "1" } });
     } catch (cause) {
@@ -158,7 +163,7 @@ export default function ProductForm({ product, purchase = false }: { product?: P
     <View style={ui.card}>
       <Text style={ui.subtitle}>{t("business.productPhoto")}</Text>
       <Text style={ui.text}>{t("business.photoLimitHint")}</Text>
-      <SquareFrame maxSize={purchase ? 160 : 300} style={{ backgroundColor: colors.elevated, borderRadius: 12, borderWidth: 1, borderStyle: displayPhotoUri ? "solid" : "dashed", borderColor: colors.border, alignItems: "center", justifyContent: "center", gap: 10 }}>
+      <SquareFrame maxSize={purchase ? 160 : 300} style={{ backgroundColor: displayPhotoUri ? colors.productPhoto : colors.elevated, borderRadius: 12, borderWidth: 1, borderStyle: displayPhotoUri ? "solid" : "dashed", borderColor: colors.border, alignItems: "center", justifyContent: "center", gap: 10 }}>
         {displayPhotoUri ? <Image source={{ uri: displayPhotoUri }} contentFit="cover" accessibilityLabel={t("business.photoPreview")} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} /> : <><ImagePlus size={36} color={colors.muted} /><Text style={ui.text}>{t("business.photoOptional")}</Text></>}
         {displayPhotoUri && <Pressable disabled={busy || photoBusy} accessibilityRole="button" accessibilityLabel={t("business.removePhoto")} onPress={() => { removeDraftPhoto(photo?.uri); setPhoto(undefined); setExistingPhotoUri(undefined); }} style={{ position: "absolute", right: 8, top: 8, width: 44, height: 44, borderRadius: 22, backgroundColor: colors.card, justifyContent: "center", alignItems: "center" }}><X size={20} color={colors.text} /></Pressable>}
         {photoBusy && <ActivityIndicator color={colors.primary} style={{ position: "absolute" }} accessibilityLabel={t("common.loading")} />}
@@ -181,13 +186,15 @@ export default function ProductForm({ product, purchase = false }: { product?: P
       <SelectField label={t("business.measurementUnit")} value={unit} options={PRODUCT_UNITS.filter((item) => item.group === group).map((item) => ({ id: item.id, label: item[localeKey] }))} onChange={(value) => { const selected = getUnit(value); if (selected) changeUnit(selected.id); }} disabled={busy} />
       <Text style={ui.text}>{t("business.unitPriceHint", { unit: unitName })}</Text>
       <Field label={`${t("business.pricePerUnit", { unit: unitName })} *`} value={price} onChangeText={setPrice} keyboardType="decimal-pad" editable={!busy} />{inlineError("price")}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}><Text style={[ui.subtitle, { flex: 1 }]}>{t("selling.wholesaleEnabled")}</Text><Switch accessibilityLabel={t("selling.wholesaleEnabled")} value={wholesaleEnabled} onValueChange={setWholesaleEnabled} disabled={busy} trackColor={{ true: colors.primary }} /></View>
+      {wholesaleEnabled && <><Field label={t("selling.wholesalePrice", { unit: unitName })} value={wholesalePrice} onChangeText={setWholesalePrice} keyboardType="decimal-pad" editable={!busy} /><Text style={ui.text}>{t("selling.wholesaleHint")}</Text>{fieldErrors.wholesale && <Text accessibilityRole="alert" style={ui.error}>{t("selling.invalidWholesale")}</Text>}</>}
       <Field label={`${t("business.costPerUnit", { unit: unitName })} *`} value={cost} onChangeText={setCost} keyboardType="decimal-pad" editable={!busy} />{inlineError("cost")}
       {product ? <><Text style={ui.subtitle}>{t("inventory.stock")}: {product.stock.toLocaleString(language)} {unitName}</Text><Text style={ui.text}>{t("inventory.editStockHint")}</Text></> : <><Field label={`${t(purchase ? "purchase.initialQuantity" : "business.openingStock", { unit: unitName })} *`} value={stock} onChangeText={setStock} keyboardType={fractional ? "decimal-pad" : "number-pad"} placeholder={fractional ? "0.000" : "0"} editable={!busy} />{inlineError("stock")}</>}
       <Text style={ui.text}>{t(fractional ? "business.fractionalQuantityHint" : "business.wholeQuantityHint", { unit: unitName })}</Text>
       <Field label={`${t("inventory.threshold")} (${unitName})`} value={threshold} onChangeText={setThreshold} keyboardType={fractional ? "decimal-pad" : "number-pad"} placeholder="5" editable={!busy} />{inlineError("threshold")}
       <Field label={`${t("inventory.description")} (${t("inventory.optional")})`} value={description} onChangeText={setDescription} multiline editable={!busy} />
     </View>
-    {!product && <View style={ui.card}><Text style={ui.subtitle}>{t("flows.optionalBatch")}</Text><Field label={t("flows.batch")} value={batchNumber} onChangeText={setBatchNumber} editable={!busy} /><Field label={t("flows.expiryDate")} value={expiryDate} onChangeText={setExpiryDate} placeholder="2027-12-31" editable={!busy} /></View>}
+    {!product && <View style={ui.card}><Text style={ui.subtitle}>{t("flows.optionalBatch")}</Text><Field label={t("flows.batch")} value={batchNumber} onChangeText={setBatchNumber} editable={!busy} /><DateTimeField label={t("flows.expiryDate")} value={expiryDate} onChange={setExpiryDate} disabled={busy} clearable /></View>}
     {!!error && <Text accessibilityRole="alert" style={ui.error}>{t(`${error === "invalidBatch" ? "flows" : ["unitHasStock", "productMissing"].includes(error) ? "inventory" : "business"}.${error}`)}</Text>}
     {purchase && <View style={ui.card}><View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}><Text style={[ui.subtitle, { flex: 1 }]}>{t("purchase.addToPurchase")}</Text><Switch accessibilityLabel={t("purchase.addToPurchase")} value={addToPurchase} onValueChange={setAddToPurchase} disabled={busy} trackColor={{ true: colors.primary }} /></View><Text style={ui.text}>{t("purchase.addHint")}</Text></View>}
     <Button title={t(busy ? "business.savingProduct" : purchase ? addToPurchase ? "purchase.saveAdd" : "purchase.saveProduct" : product ? "inventory.saveChanges" : "business.saveProduct")} disabled={busy || photoBusy || categoryBusy} onPress={() => void save()} />

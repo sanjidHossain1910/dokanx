@@ -48,7 +48,7 @@ export default function ProductPhotoCrop({ source, onCancel, onDone, onBusyChang
   return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <Header title={t("business.cropPhoto")} description={t("business.cropHint")} onBack={() => { if (!locked.current) onCancel(); }} />
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 20, gap: 16, width: "100%", maxWidth: 440, alignSelf: "center" }}>
-        <SquareFrame maxSize={400} onSizeChange={setSize} {...pan.panHandlers} style={{ borderRadius: 12, backgroundColor: colors.elevated }}>
+        <SquareFrame maxSize={400} onSizeChange={setSize} {...pan.panHandlers} style={{ borderRadius: 12, backgroundColor: colors.productPhoto }}>
           <Image pointerEvents="none" source={{ uri: source.uri }} contentFit="fill" accessibilityLabel={t("business.cropPhoto")} style={{ position: "absolute", width: source.width * scale, height: source.height * scale, left: -crop.originX * scale, top: -crop.originY * scale }} />
           <View pointerEvents="none" style={{ position: "absolute", inset: 0, borderWidth: 2, borderColor: colors.primary }} />
         </SquareFrame>

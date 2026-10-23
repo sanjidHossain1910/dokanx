@@ -1,4 +1,5 @@
 export const businessEn = {
+  clearDate: "Clear date or time",
   cropPhoto: "Crop product photo", cropHint: "Drag the image and zoom to frame your product in a square.", zoomIn: "Zoom in +", zoomOut: "Zoom out −", usePhoto: "Use this photo",
   photoLimitHint: "Square (1:1) photo. The cropped image is compressed to 1 MB or less.", photoTooLarge: "The cropped photo exceeds 1 MB. Choose another photo or crop a smaller area.", photoPreview: "Product photo preview", scanBarcodeField: "Scan barcode with camera", cameraPhotoHint: "Take a photo, then adjust its square crop.", takeProductPhoto: "Take photo",
   addProductHint: "Add a photo, choose how you sell, and set the opening stock.",
@@ -29,6 +30,7 @@ export const businessEn = {
   cameraPermission: "Camera permission required", cameraHelp: "Allow camera access to scan barcodes.", browserCameraHelp: "Allow camera access in your browser's site settings, then try again.", allowCamera: "Allow camera", openSettings: "Open Settings", cameraError: "Camera could not start. Check permission and try again.", scanHint: "Place the barcode inside the frame", torch: "Toggle flashlight",
 };
 export const businessBn: Record<keyof typeof businessEn, string> = {
+  clearDate: "তারিখ বা সময় মুছুন",
   cropPhoto: "পণ্যের ছবি ক্রপ করুন", cropHint: "ছবি সরিয়ে ও জুম করে বর্গাকার ফ্রেমে পণ্যটি ঠিক করুন।", zoomIn: "বড় করুন +", zoomOut: "ছোট করুন −", usePhoto: "এই ছবি ব্যবহার করুন",
   photoLimitHint: "বর্গাকার (১:১) ছবি। ক্রপ করা ছবি কমপ্রেস করে সর্বোচ্চ ১ MB রাখা হবে।", photoTooLarge: "ক্রপ করা ছবি ১ MB-এর বেশি। অন্য ছবি বাছুন বা আরও ছোট অংশ ক্রপ করুন।", photoPreview: "পণ্যের ছবির প্রিভিউ", scanBarcodeField: "ক্যামেরা দিয়ে বারকোড নিন", cameraPhotoHint: "ছবি তুলুন, তারপর বর্গাকার ক্রপ ঠিক করুন।", takeProductPhoto: "ছবি তুলুন",
   addProductHint: "ছবি যোগ করুন, বিক্রির একক বাছুন এবং শুরুর স্টক লিখুন।",
